@@ -152,8 +152,14 @@ def create_model_misc_config(app_config):
         'nextn_accept_rates': nextn_accept_rates
     }
 
-def create_runtime_config(app_config, with_sla=False):
-    """create runtime config components"""
+def create_runtime_config(app_config, with_sla=False, multi_sla=False):
+    """create runtime config components
+    
+    Args:
+        app_config: Application configuration
+        with_sla: If True, include TTFT and TPOT inputs
+        multi_sla: If True, use Textbox for multi-value SLA input (comma-separated)
+    """
     
     with gr.Accordion("Runtime config"):
         with gr.Row():
@@ -161,8 +167,27 @@ def create_runtime_config(app_config, with_sla=False):
             osl = gr.Number(value=128, label='output sequence length', interactive=True)
                 
             if with_sla:
-                ttft = gr.Number(value=2000, label='first token latency(ms)', interactive=True)
-                tpot = gr.Number(value=50, label='inter token latency(ms)', interactive=True)
+                if multi_sla:
+                    # Use Textbox for flexible input: single value or comma-separated values
+                    ttft = gr.Textbox(
+                        value='2000', 
+                        label='TTFT (ms)', 
+                        placeholder='e.g., 100 or 50,100,150',
+                        info='Single value or comma-separated values',
+                        interactive=True
+                    )
+                    tpot = gr.Textbox(
+                        value='50', 
+                        label='TPOT (ms)', 
+                        placeholder='e.g., 20 or 10,20,30',
+                        info='Single value or comma-separated values',
+                        interactive=True
+                    )
+                else:
+                    # Use Number for single value only (backward compatible)
+                    ttft = gr.Number(value=2000, label='first token latency(ms)', interactive=True)
+                    tpot = gr.Number(value=50, label='inter token latency(ms)', interactive=True)
+                
                 return {
                     'isl': isl,
                     'osl': osl,

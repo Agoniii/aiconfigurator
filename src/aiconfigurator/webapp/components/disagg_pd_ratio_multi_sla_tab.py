@@ -24,7 +24,7 @@ def create_disagg_pd_ratio_multi_sla_tab(app_config):
             )
 
         model_name_components = create_model_name_config(app_config)
-        runtime_config_components = create_runtime_config(app_config, with_sla=True)        
+        runtime_config_components = create_runtime_config(app_config, with_sla=True, multi_sla=True)        
         model_misc_config_components = create_model_misc_config(app_config)
         with gr.Row():       
             with gr.Column(elem_classes="config-column"):
