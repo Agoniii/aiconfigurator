@@ -615,6 +615,237 @@ class EventFn:
         return gr.update(value=prefill_results_df), gr.update(value=prefill_throughput_html), gr.update(value=decode_results_df), gr.update(value=decode_throughput_html), gr.update(value=stdout_text+stderr_text+traceback_log)
 
     @staticmethod
+    def run_estimation_disagg_pd_ratio_multi_sla(model_name, 
+                                     isl, osl, ttft_list, tpot_list,
+                                     nextn, nextn_accept_rates,
+                                     prefill_system_name, prefill_backend_name, prefill_version, prefill_sol_mode,
+                                     prefill_tp_size, prefill_pp_size, prefill_dp_size, prefill_moe_tp_size, prefill_moe_ep_size,
+                                     prefill_gemm_quant_mode, prefill_kvcache_quant_mode, prefill_fmha_quant_mode,
+                                     prefill_moe_quant_mode, prefill_comm_quant_mode,
+                                     decode_system_name, decode_backend_name, decode_version, decode_sol_mode,
+                                     decode_tp_size, decode_pp_size, decode_dp_size, decode_moe_tp_size, decode_moe_ep_size,
+                                     decode_gemm_quant_mode, decode_kvcache_quant_mode, decode_fmha_quant_mode,
+                                     decode_moe_quant_mode, decode_comm_quant_mode
+                              ):
+        """
+        Multi-SLA version of disaggregated P/D ratio analysis.
+        Supports multiple TTFT and TPOT constraints for comprehensive SLA analysis.
+        
+        Args:
+            ttft_list: Comma-separated string of TTFT values (e.g., "50,100,150")
+            tpot_list: Comma-separated string of TPOT values (e.g., "10,20,30")
+        """
+
+        def create_scatter_plot_multi_sla(df, x_col, y_col, target_x_list, x_label, title, sla_type='TTFT'):
+            """
+            Create scatter plot with multiple SLA limit lines.
+            
+            Args:
+                target_x_list: List of tuples (sla_value, target_bs) for each SLA
+                sla_type: 'TTFT' or 'TPOT' for labeling
+            """
+            colors = ['gray', 'purple', 'orange', 'brown', 'pink', 'cyan', 'magenta', 'olive', 'navy', 'teal']
+            fig = go.Figure()
+            
+            # Add main data trace
+            fig.add_trace(go.Scatter(
+                x=df[x_col], 
+                y=df[y_col],
+                mode="lines+markers",
+                line=dict(color='red', width=2),
+                marker=dict(color='blue', size=8),
+                hovertemplate=
+                f"<b>{x_col}:</b> %{{x:.2f}}<br>" +
+                f"<b>{y_col}:</b> %{{y:.2f}}<br>" +
+                f"<b>{x_label}:</b> %{{customdata[0]:.2f}}<br>" +
+                "<b>memory(GiB):</b> %{customdata[1]:.2f}<br>" +
+                "<b>index:</b> %{customdata[2]}<extra></extra>",
+                customdata=np.stack((df[x_label],df["memory"], df["index"]), axis=1),
+                name="Throughput"
+            ))
+
+            # Add multiple SLA limit lines
+            for idx, (sla_value, target_bs) in enumerate(target_x_list):
+                if target_bs > 0:
+                    color = colors[idx % len(colors)]
+                    fig.add_vline(x=target_bs, line_dash="dash", line_color=color, line_width=2)
+                    # Add text annotation
+                    fig.add_annotation(
+                        x=target_bs,
+                        y=fig.data[0].y.max() * (0.9 - idx * 0.08),  # Stagger annotations
+                        text=f"{sla_type}={sla_value}ms",
+                        showarrow=True,
+                        arrowhead=1,
+                        arrowsize=1,
+                        arrowwidth=1,
+                        arrowcolor=color,
+                        font=dict(size=10, color=color),
+                        ax=30,
+                        ay=-30 - idx * 10
+                    )
+
+            fig.update_layout(
+                title={
+                    'text': title,
+                    'y':0.95,
+                    'x':0.5,
+                    'xanchor': 'center',
+                    'yanchor': 'top',
+                    'font': dict(size=12, family='Arial, sans-serif')
+                },
+                xaxis_title={
+                    'text': x_col,
+                    'font': dict(size=14, family='Arial, sans-serif')
+                },
+                yaxis_title={
+                    'text': y_col,
+                    'font': dict(size=14, family='Arial, sans-serif')
+                },
+                height=800,
+                showlegend=True
+            )
+        
+            html_str = fig.to_html(full_html=False, include_plotlyjs='cdn')
+            iframe_html = f'<iframe srcdoc="{html_str.replace(chr(34), chr(39))}" width="100%" height="850px"></iframe>'
+            return iframe_html
+
+        is_error = False
+        traceback_log = ""
+        stdout_buffer = StringIO()
+        stderr_buffer = StringIO()
+        with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer), LogCapture() as (logger, log_buffer):
+            try:
+                # Parse multiple SLA values
+                ttft_values = [float(x.strip()) for x in ttft_list.split(',')] if ttft_list else []
+                tpot_values = [float(x.strip()) for x in tpot_list.split(',')] if tpot_list else []
+                
+                if not ttft_values or not tpot_values:
+                    raise ValueError("Please provide at least one TTFT and TPOT value")
+                
+                logger.info(f"Running multi-SLA analysis with TTFT values: {ttft_values}, TPOT values: {tpot_values}")
+                
+                nextn_accept_rates = [float(x) for x in nextn_accept_rates.split(',')]
+                prefill_model_config = config.ModelConfig(tp_size=prefill_tp_size,
+                                                            pp_size=prefill_pp_size,
+                                                            attention_dp_size=prefill_dp_size,
+                                                            moe_tp_size=prefill_moe_tp_size,
+                                                            moe_ep_size=prefill_moe_ep_size,
+                                                            gemm_quant_mode=common.GEMMQuantMode[prefill_gemm_quant_mode],
+                                                            kvcache_quant_mode=common.KVCacheQuantMode[prefill_kvcache_quant_mode],
+                                                            fmha_quant_mode=common.FMHAQuantMode[prefill_fmha_quant_mode],
+                                                            moe_quant_mode=common.MoEQuantMode[prefill_moe_quant_mode],
+                                                            comm_quant_mode=common.CommQuantMode[prefill_comm_quant_mode],
+                                                            nextn=nextn,
+                                                            nextn_accept_rates=nextn_accept_rates)
+                decode_model_config = config.ModelConfig(tp_size=decode_tp_size,
+                                                            pp_size=decode_pp_size,
+                                                            attention_dp_size=decode_dp_size,
+                                                            moe_tp_size=decode_moe_tp_size,
+                                                            moe_ep_size=decode_moe_ep_size,
+                                                            gemm_quant_mode=common.GEMMQuantMode[decode_gemm_quant_mode],
+                                                            kvcache_quant_mode=common.KVCacheQuantMode[decode_kvcache_quant_mode],
+                                                            fmha_quant_mode=common.FMHAQuantMode[decode_fmha_quant_mode],
+                                                            moe_quant_mode=common.MoEQuantMode[decode_moe_quant_mode],
+                                                            comm_quant_mode=common.CommQuantMode[decode_comm_quant_mode],
+                                                            nextn=nextn,
+                                                            nextn_accept_rates=nextn_accept_rates)
+
+                prefill_max_num_tokens = 16384
+                decode_max_num_tokens = 512
+                decode_stride = (osl + 8 - 1) // 8
+        
+                # ===== Prefill Analysis =====
+                prefill_model = get_model(model_name, prefill_model_config, prefill_backend_name)
+                prefill_database = copy.deepcopy(get_database(prefill_system_name, prefill_backend_name, prefill_version))
+                assert prefill_database is not None
+                prefill_database.set_default_sol_mode(common.SOLMode(int(prefill_sol_mode)))
+                prefill_backend = get_backend(prefill_backend_name)
+                prefill_session = InferenceSession(prefill_model, prefill_database, prefill_backend)
+                prefill_results_df = pd.DataFrame(columns=common.ColumnsStatic)
+                
+                # Track target batch sizes for each TTFT
+                prefill_target_bs_list = [(ttft, 0) for ttft in ttft_values]
+                
+                for b in range(1, (prefill_max_num_tokens+isl-1)//isl+1+1):
+                    prefill_summary = prefill_session.run_static(mode='static_ctx', runtime_config=config.RuntimeConfig(batch_size=b, isl=isl, osl=osl))
+                    prefill_results_df = pd.concat([prefill_results_df, prefill_summary.get_summary_df()], ignore_index=True)
+                    
+                    context_latency = prefill_summary.get_summary_df().loc[0,'context_latency']
+                    # Check all TTFT thresholds
+                    for i, (ttft, current_bs) in enumerate(prefill_target_bs_list):
+                        if context_latency > ttft and current_bs == 0:
+                            prefill_target_bs_list[i] = (ttft, b * prefill_dp_size)  # global_bs
+                            logger.info(f"Prefill: TTFT={ttft}ms reached at global_bs={b * prefill_dp_size}, context_latency={context_latency:.2f}ms")
+                
+                prefill_results_df = prefill_results_df.reset_index(drop=True).reset_index()
+                title = f'{model_name}_isl{isl}_osl{osl}_prefill_{prefill_system_name}_{prefill_backend_name}_{prefill_version}_Multi_SLA_Throughput'
+                prefill_throughput_html = create_scatter_plot_multi_sla(prefill_results_df, 'global_bs', 'seq/s', 
+                                                                         prefill_target_bs_list, 'context_latency', title, 'TTFT')
+
+                # ===== Decode Analysis =====
+                decode_model = get_model(model_name, decode_model_config, decode_backend_name)
+                decode_database = copy.deepcopy(get_database(decode_system_name, decode_backend_name, decode_version))
+                assert decode_database is not None
+                decode_database.set_default_sol_mode(common.SOLMode(int(decode_sol_mode)))
+                decode_backend = get_backend(decode_backend_name)
+                decode_session = InferenceSession(decode_model, decode_database, decode_backend)
+                decode_results_df = pd.DataFrame(columns=common.ColumnsStatic)
+                
+                # Track target batch sizes for each TPOT
+                decode_target_bs_list = [(tpot, 0) for tpot in tpot_values]
+                max_tpot_for_early_stop = max(tpot_values) * 1.5
+                
+                for b in list(range(1, 16))+list(range(16, 64, 4))+list(range(64, 128, 8))+list(range(128, 256, 16))+list(range(256, 512, 32))+[512]:
+                    decode_summary = decode_session.run_static(mode='static_gen', runtime_config=config.RuntimeConfig(batch_size=b, isl=isl, osl=osl), stride=decode_stride)
+                    decode_results_df = pd.concat([decode_results_df, decode_summary.get_summary_df()], ignore_index=True)
+                    
+                    tpot = decode_summary.get_summary_df().loc[0,'tpot']
+                    # Check all TPOT thresholds
+                    for i, (target_tpot, current_bs) in enumerate(decode_target_bs_list):
+                        if tpot > target_tpot and current_bs == 0:
+                            decode_target_bs_list[i] = (target_tpot, b * decode_dp_size)  # global_bs
+                            logger.info(f"Decode: TPOT={target_tpot}ms reached at global_bs={b * decode_dp_size}, tpot={tpot:.2f}ms")
+                    
+                    # Early stop when exceeding max TPOT threshold
+                    if tpot > max_tpot_for_early_stop and b > 10:
+                        logger.info(f"Early stopping at batch_size={b} as TPOT={tpot:.2f}ms exceeds 1.5x max TPOT threshold")
+                        break
+                
+                decode_results_df = decode_results_df.reset_index(drop=True).reset_index()
+                title = f'{model_name}_isl{isl}_osl{osl}_decode_{decode_system_name}_{decode_backend_name}_{decode_version}_Multi_SLA_Throughput'
+                decode_throughput_html = create_scatter_plot_multi_sla(decode_results_df, 'global_bs', 'seq/s', 
+                                                                        decode_target_bs_list, 'tpot', title, 'TPOT')
+                
+                # Log summary for all SLAs
+                logger.info("=" * 60)
+                logger.info("Multi-SLA Analysis Summary:")
+                logger.info("Prefill (TTFT constraints):")
+                for ttft, target_bs in prefill_target_bs_list:
+                    if target_bs > 0:
+                        logger.info(f"  TTFT={ttft}ms -> global_bs={target_bs}")
+                    else:
+                        logger.info(f"  TTFT={ttft}ms -> NOT REACHED (latency always below threshold)")
+                
+                logger.info("Decode (TPOT constraints):")
+                for tpot, target_bs in decode_target_bs_list:
+                    if target_bs > 0:
+                        logger.info(f"  TPOT={tpot}ms -> global_bs={target_bs}")
+                    else:
+                        logger.info(f"  TPOT={tpot}ms -> NOT REACHED (latency always below threshold)")
+                logger.info("=" * 60)
+            
+            except Exception as e:
+                prefill_results_df = pd.DataFrame(columns=common.ColumnsDisagg)
+                decode_results_df = pd.DataFrame(columns=common.ColumnsDisagg)
+                traceback_log = traceback.format_exc()
+                is_error = True
+        stdout_text = stdout_buffer.getvalue() + log_buffer.getvalue()
+        stderr_text = stderr_buffer.getvalue()
+        if is_error:
+            return gr.update(value=prefill_results_df), gr.update(value=""), gr.update(value=decode_results_df), gr.update(value=""), gr.update(value=stdout_text+stderr_text+traceback_log)
+        return gr.update(value=prefill_results_df), gr.update(value=prefill_throughput_html), gr.update(value=decode_results_df), gr.update(value=decode_throughput_html), gr.update(value=stdout_text+stderr_text+traceback_log)
+
+    @staticmethod
     def save_result_for_comparison(result_name, result_df, pareto_results_state):
         is_error = False
         traceback_log = ""
