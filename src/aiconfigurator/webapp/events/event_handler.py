@@ -208,6 +208,76 @@ class EventHandler:
 
 
     @staticmethod
+    def setup_disagg_pareto_multi_ttft_events(components):
+        components['estimate_btn'].click(
+            fn=EventFn.run_estimation_disagg_pareto_multi_ttft,
+            inputs=[
+                components['model_name_components']['model_name'],# model
+                components['runtime_config_components']['isl'], # runtime
+                components['runtime_config_components']['osl'],
+                components['runtime_config_components']['ttft'], # Now a Textbox for multi-TTFT
+                components['model_misc_config_components']['nextn'],
+                components['model_misc_config_components']['nextn_accept_rates'],
+                components['prefill_model_system_components']['system'],  # prefill              
+                components['prefill_model_system_components']['backend'],
+                components['prefill_model_system_components']['version'],
+                components['prefill_model_system_components']['sol_mode'],
+                components['prefill_model_parallel_components']['num_worker'],
+                components['prefill_model_parallel_components']['num_gpus'],
+                components['prefill_model_parallel_components']['tp_size'],
+                components['prefill_model_parallel_components']['pp_size'],
+                components['prefill_model_parallel_components']['dp_size'],
+                components['prefill_model_parallel_components']['moe_tp_size'],
+                components['prefill_model_parallel_components']['moe_ep_size'], 
+                components['prefill_model_quant_components']['gemm_quant_mode'], 
+                components['prefill_model_quant_components']['kvcache_quant_mode'],
+                components['prefill_model_quant_components']['fmha_quant_mode'],                
+                components['prefill_model_quant_components']['moe_quant_mode'],
+                components['prefill_model_quant_components']['comm_quant_mode'],
+                components['prefill_latency_correction_scale'],
+                components['decode_model_system_components']['system'], # decode        
+                components['decode_model_system_components']['backend'],
+                components['decode_model_system_components']['version'],
+                components['decode_model_system_components']['sol_mode'],
+                components['decode_model_parallel_components']['num_worker'],
+                components['decode_model_parallel_components']['num_gpus'],                
+                components['decode_model_parallel_components']['tp_size'],
+                components['decode_model_parallel_components']['pp_size'],
+                components['decode_model_parallel_components']['dp_size'],
+                components['decode_model_parallel_components']['moe_tp_size'],
+                components['decode_model_parallel_components']['moe_ep_size'], 
+                components['decode_model_quant_components']['gemm_quant_mode'], 
+                components['decode_model_quant_components']['kvcache_quant_mode'],
+                components['decode_model_quant_components']['fmha_quant_mode'],                
+                components['decode_model_quant_components']['moe_quant_mode'],
+                components['decode_model_quant_components']['comm_quant_mode'],
+                components['decode_latency_correction_scale'],
+                components['num_gpu_list'],
+                components['max_num_gpu'],
+                components['prefill_max_num_worker'],
+                components['decode_max_num_worker'],
+                components['prefill_max_batch_size'],
+                components['decode_max_batch_size'],
+            ],
+            outputs=[
+                components['result_df'],
+                components['pareto_html'],
+                components['result_name'],
+                components['save_btn'],
+                components['debugging_box']
+            ]
+        )
+        components['download_btn'].click(
+            fn=EventFn.generate_csv,
+            inputs=components['result_df'],
+            outputs=components['output_file']
+        )
+        EventHandler.setup_common_events(components['model_name_components'], components['prefill_model_system_components'], components['prefill_model_quant_components'])
+        EventHandler.setup_common_events(components['model_name_components'], components['decode_model_system_components'], components['decode_model_quant_components'])
+        EventHandler.setup_model_name_events(components['model_name_components'], components['prefill_model_quant_components'], components['prefill_model_parallel_components'], components['model_misc_config_components'])
+        EventHandler.setup_model_name_events(components['model_name_components'], components['decode_model_quant_components'], components['decode_model_parallel_components'], components['model_misc_config_components'])
+
+    @staticmethod
     def setup_disagg_pd_ratio_events(components):
         components['estimate_btn'].click(
             fn=EventFn.run_estimation_disagg_pd_ratio,

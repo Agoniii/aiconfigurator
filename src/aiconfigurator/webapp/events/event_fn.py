@@ -457,6 +457,297 @@ class EventFn:
         return gr.update(value=results_df), gr.update(value=pareto_html), gr.update(value=title), gr.update(interactive=True, value="Save for comparison"), gr.update(value=stdout_text+stderr_text+traceback_log)
     
     @staticmethod
+    def run_estimation_disagg_pareto_multi_ttft(model_name, 
+                                     isl, osl, ttft_list,
+                                     nextn, nextn_accept_rates,
+                                     prefill_system_name, prefill_backend_name, prefill_version, prefill_sol_mode,
+                                     prefill_num_worker, prefill_num_gpus, prefill_tp_size, prefill_pp_size, prefill_dp_size, prefill_moe_tp_size, prefill_moe_ep_size,
+                                     prefill_gemm_quant_mode, prefill_kvcache_quant_mode, prefill_fmha_quant_mode,
+                                     prefill_moe_quant_mode, prefill_comm_quant_mode,
+                                     prefill_latency_correction_scale,
+                                     decode_system_name, decode_backend_name, decode_version, decode_sol_mode,
+                                     decode_num_worker, decode_num_gpus, decode_tp_size, decode_pp_size, decode_dp_size, decode_moe_tp_size, decode_moe_ep_size,
+                                     decode_gemm_quant_mode, decode_kvcache_quant_mode, decode_fmha_quant_mode,
+                                     decode_moe_quant_mode, decode_comm_quant_mode,
+                                     decode_latency_correction_scale,
+                                     num_gpu_list, max_num_gpu,
+                                     prefill_max_num_worker, decode_max_num_worker,
+                                     prefill_max_batch_size, decode_max_batch_size):
+        """
+        Multi-TTFT version of disaggregated Pareto analysis.
+        Supports multiple TTFT constraints for comprehensive trade-off analysis.
+        
+        Args:
+            ttft_list: Comma-separated string of TTFT values (e.g., "100,200,300")
+        """
+        
+        def create_multi_pareto_plot(results_dict, title_base):
+            """
+            Create scatter plot with multiple Pareto curves (one per TTFT).
+            
+            Args:
+                results_dict: Dict mapping TTFT values to their result DataFrames
+                title_base: Base title for the plot
+            """
+            colors = ['blue', 'red', 'green', 'purple', 'orange', 'brown', 'pink', 'gray', 'cyan', 'magenta']
+            fig = go.Figure()
+            
+            for idx, (ttft, df) in enumerate(results_dict.items()):
+                if df.empty:
+                    continue
+                    
+                color = colors[idx % len(colors)]
+                fig.add_trace(go.Scatter(
+                    x=df['tokens/s/user'], 
+                    y=df['tokens/s/gpu'],
+                    mode="lines+markers",
+                    name=f"TTFT={ttft}ms",
+                    line=dict(color=color, width=2),
+                    marker=dict(color=color, size=8),
+                    hovertemplate=
+                    f"<b>TTFT={ttft}ms</b><br>" +
+                    "<b>tokens/s/user:</b> %{x:.2f}<br>" +
+                    "<b>tokens/s/gpu:</b> %{y:.2f}<br>" +
+                    "<b>TTFT(ms):</b> %{customdata[0]:.2f}<br>" +
+                    "<b>TPOT(ms):</b> %{customdata[1]:.2f}<br>" +
+                    "<b>seq/s (system):</b> %{customdata[2]:.2f}<br>" +
+                    "<b>prefill hardware:</b> %{customdata[3]}<br>" +
+                    "<b>prefill workers:</b> %{customdata[4]}<br>" +
+                    "<b>prefill seq/s/worker:</b> %{customdata[5]:.2f}<br>" +
+                    "<b>prefill parallel:</b> %{customdata[6]}<br>" +
+                    "<b>prefill bs:</b> %{customdata[7]}<br>" +
+                    "<b>prefill memory:</b> %{customdata[8]}<br>" +
+                    "<b>decode hardware:</b> %{customdata[9]}<br>" +
+                    "<b>decode workers:</b> %{customdata[10]}<br>" +
+                    "<b>decode seq/s/worker:</b> %{customdata[11]:.2f}<br>" +
+                    "<b>decode parallel:</b> %{customdata[12]}<br>" +
+                    "<b>decode bs:</b> %{customdata[13]}<br>" +
+                    "<b>decode memory:</b> %{customdata[14]}<br>" +
+                    "<b>concurrency:</b> %{customdata[15]}<br>" +
+                    "<b>total gpus:</b> %{customdata[16]}<br>" +
+                    "<b>index:</b> %{customdata[17]}<extra></extra>",
+                    customdata=np.stack((df["ttft"],df["tpot"],df["seq/s"],df["(p)system"], df["(p)workers"], df["(p)seq/s/worker"], df['(p)parallel'], df["(p)bs"], df["(p)memory"], df["(d)system"], df["(d)workers"], df["(d)seq/s/worker"], df['(d)parallel'], df["(d)bs"], df["(d)memory"], df["concurrency"], df["num_total_gpus"], df["index"]), axis=1)
+                ))
+
+            fig.update_layout(
+                title={
+                    'text': f'{title_base} - Multi-TTFT Comparison',
+                    'y':0.95,
+                    'x':0.5,
+                    'xanchor': 'center',
+                    'yanchor': 'top',
+                    'font': dict(size=14, family='Arial, sans-serif')
+                },
+                xaxis_title={
+                    'text': 'tokens/s/user',
+                    'font': dict(size=14, family='Arial, sans-serif')
+                },
+                yaxis_title={
+                    'text': 'tokens/s/gpu',
+                    'font': dict(size=14, family='Arial, sans-serif')
+                },
+                height=600,
+                showlegend=True,
+                legend=dict(
+                    x=1.02,
+                    y=1,
+                    xanchor='left',
+                    yanchor='top',
+                    bgcolor='rgba(255,255,255,0.8)',
+                    bordercolor='gray',
+                    borderwidth=1
+                )
+            )
+            
+            html_str = fig.to_html(include_plotlyjs='cdn', full_html=False)
+            iframe_html = f'<iframe srcdoc="{html_str.replace(chr(34), chr(39))}" width="100%" height="650px"></iframe>'
+            return iframe_html
+        
+        is_error = False
+        traceback_log = ""
+        stdout_buffer = StringIO()
+        stderr_buffer = StringIO()
+        with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer), LogCapture() as (logger, log_buffer):
+            try:
+                # Parse multiple TTFT values
+                ttft_values = [float(x.strip()) for x in ttft_list.split(',')] if ttft_list else []
+                
+                if not ttft_values:
+                    raise ValueError("Please provide at least one TTFT value")
+                
+                logger.info(f"Running multi-TTFT Pareto analysis with TTFT values: {ttft_values}")
+                
+                # Setup databases and configs (common for all TTFTs)
+                prefill_database = copy.deepcopy(get_database(prefill_system_name, prefill_backend_name, prefill_version))
+                decode_database = copy.deepcopy(get_database(decode_system_name, decode_backend_name, decode_version))
+                assert prefill_database is not None
+                assert decode_database is not None
+                prefill_database.set_default_sol_mode(common.SOLMode(int(prefill_sol_mode)))
+                decode_database.set_default_sol_mode(common.SOLMode(int(decode_sol_mode)))
+                nextn_accept_rates = [float(x) for x in nextn_accept_rates.split(',')]
+                
+                prefill_model_config = config.ModelConfig(tp_size=prefill_tp_size,
+                                                        pp_size=prefill_pp_size,
+                                                        attention_dp_size=prefill_dp_size,
+                                                        moe_tp_size=prefill_moe_tp_size,
+                                                        moe_ep_size=prefill_moe_ep_size,
+                                                        gemm_quant_mode=common.GEMMQuantMode[prefill_gemm_quant_mode],
+                                                        kvcache_quant_mode=common.KVCacheQuantMode[prefill_kvcache_quant_mode],
+                                                        fmha_quant_mode=common.FMHAQuantMode[prefill_fmha_quant_mode],
+                                                        moe_quant_mode=common.MoEQuantMode[prefill_moe_quant_mode],
+                                                        comm_quant_mode=common.CommQuantMode[prefill_comm_quant_mode],
+                                                        nextn=nextn,
+                                                        nextn_accept_rates=nextn_accept_rates)
+                decode_model_config = config.ModelConfig(tp_size=decode_tp_size,
+                                                        pp_size=decode_pp_size,
+                                                        attention_dp_size=decode_dp_size,
+                                                        moe_tp_size=decode_moe_tp_size,
+                                                        moe_ep_size=decode_moe_ep_size,
+                                                        gemm_quant_mode=common.GEMMQuantMode[decode_gemm_quant_mode],
+                                                        kvcache_quant_mode=common.KVCacheQuantMode[decode_kvcache_quant_mode],
+                                                        fmha_quant_mode=common.FMHAQuantMode[decode_fmha_quant_mode],
+                                                        moe_quant_mode=common.MoEQuantMode[decode_moe_quant_mode],
+                                                        comm_quant_mode=common.CommQuantMode[decode_comm_quant_mode],
+                                                        nextn=nextn,
+                                                        nextn_accept_rates=nextn_accept_rates)
+
+                is_moe = check_is_moe(model_name)
+
+                # Enumerate parallel configs
+                prefill_parallel_config_list = pareto_analysis.enumerate_parallel_config(num_gpu_list=prefill_num_gpus,
+                                                                                        tp_list=prefill_tp_size,
+                                                                                        pp_list=prefill_pp_size,
+                                                                                        moe_tp_list=prefill_moe_tp_size,
+                                                                                        moe_ep_list=prefill_moe_ep_size,
+                                                                                        dp_list=prefill_dp_size,
+                                                                                        is_moe=is_moe,
+                                                                                        backend=common.BackendName(prefill_backend_name))
+                decode_parallel_config_list = pareto_analysis.enumerate_parallel_config(num_gpu_list=decode_num_gpus,
+                                                                                        tp_list=decode_tp_size,
+                                                                                        pp_list=decode_pp_size,
+                                                                                        moe_tp_list=decode_moe_tp_size,
+                                                                                        moe_ep_list=decode_moe_ep_size,
+                                                                                        dp_list=decode_dp_size,
+                                                                                        is_moe=is_moe,
+                                                                                        backend=common.BackendName(decode_backend_name))
+                
+                for prefill_parallel_config in prefill_parallel_config_list:
+                    tp, pp, dp, moe_tp, moe_ep = prefill_parallel_config
+                    if is_moe:
+                        logger.info(f"enumerated prefill config: tp {tp} pp {pp} dp {dp} moe_tp {moe_tp} moe_ep {moe_ep}")
+                    else:
+                        logger.info(f"enumerated prefill config: tp {tp} pp {pp}")
+                
+                for decode_parallel_config in decode_parallel_config_list:
+                    tp, pp, dp, moe_tp, moe_ep = decode_parallel_config
+                    if is_moe:
+                        logger.info(f"enumerated decode config: tp {tp} pp {pp} dp {dp} moe_tp {moe_tp} moe_ep {moe_ep}")
+                    else:
+                        logger.info(f"enumerated decode config: tp {tp} pp {pp}")
+                
+                if len(prefill_parallel_config_list) == 0 or len(decode_parallel_config_list) == 0:
+                    logger.error(f"No valid parallel config found for {model_name} in the prefill or decode system. Please double check your parallel configs.")
+
+                if prefill_num_worker == -1:
+                    prefill_num_worker_list = list(range(1, prefill_max_num_worker+1, 1))
+                else:
+                    prefill_num_worker_list = [prefill_num_worker]
+                if decode_num_worker == -1:
+                    decode_num_worker_list = list(range(1, decode_max_num_worker+1, 1))
+                else:
+                    decode_num_worker_list = [decode_num_worker]
+
+                num_gpu_list_parsed = [int(x) for x in num_gpu_list.split(',')] if len(num_gpu_list) > 0 else None
+                
+                # Run Pareto analysis for each TTFT
+                results_dict = {}
+                all_results_list = []
+                
+                for ttft in ttft_values:
+                    logger.info(f"=" * 60)
+                    logger.info(f"Analyzing TTFT = {ttft}ms")
+                    logger.info(f"=" * 60)
+                    
+                    runtime_config = config.RuntimeConfig(isl=isl, osl=osl, ttft=ttft, tpot=list(range(1,20,1))+list(range(20,300,5)))
+                    
+                    results_df = pareto_analysis.disagg_pareto(model_name=model_name, 
+                                                            runtime_config=runtime_config,
+                                                            prefill_database=prefill_database, 
+                                                            prefill_backend_name=prefill_backend_name,
+                                                            prefill_model_config=prefill_model_config,
+                                                            prefill_parallel_config_list=prefill_parallel_config_list,
+                                                            prefill_num_worker_list=prefill_num_worker_list,
+                                                            prefill_latency_correction_scale=prefill_latency_correction_scale,
+                                                            decode_database=decode_database,
+                                                            decode_backend_name=decode_backend_name,
+                                                            decode_model_config=decode_model_config,
+                                                            decode_parallel_config_list=decode_parallel_config_list,
+                                                            decode_num_worker_list=decode_num_worker_list,
+                                                            decode_latency_correction_scale=decode_latency_correction_scale,
+                                                            num_gpu_list=num_gpu_list_parsed,
+                                                            max_num_gpu=max_num_gpu if max_num_gpu > 0 else None,
+                                                            prefill_max_num_tokens=prefill_max_batch_size*isl,
+                                                            decode_max_num_tokens=decode_max_batch_size)
+                    
+                    results_df = pareto_analysis.get_pareto_front(results_df, 'tokens/s/user', 'tokens/s/gpu')
+                    results_df = results_df.reset_index(drop=True).reset_index()
+                    
+                    if results_df.size == 0:
+                        logger.warning(f"No result for TTFT={ttft}ms. Try a larger TTFT limit or more GPUs.")
+                    else:
+                        logger.info(f"Found {len(results_df)} Pareto points for TTFT={ttft}ms")
+                        # Add TTFT column for identification
+                        results_df['ttft_constraint'] = ttft
+                        results_dict[ttft] = results_df
+                        all_results_list.append(results_df)
+                
+                # Combine all results
+                if all_results_list:
+                    combined_results_df = pd.concat(all_results_list, ignore_index=True)
+                    combined_results_df = combined_results_df.reset_index(drop=True).reset_index()
+                else:
+                    combined_results_df = pd.DataFrame(columns=common.ColumnsDisagg + ['ttft_constraint'])
+                    logger.error(f"No results found for any TTFT values. Try larger TTFT limits or more GPUs.")
+                
+                # Create visualization
+                title_base = f'{model_name}_isl{isl}_osl{osl}_prefill_{prefill_system_name}_{prefill_backend_name}_{prefill_version}_decode_{decode_system_name}_{decode_backend_name}_{decode_version}_Disagg_Pareto'
+                
+                if results_dict:
+                    pareto_html = create_multi_pareto_plot(results_dict, title_base)
+                    title = f'{title_base}_Multi_TTFT_{"-".join(str(int(t)) for t in ttft_values)}'
+                else:
+                    pareto_html = "No results to display"
+                    title = title_base
+                
+                # Log summary
+                logger.info("=" * 60)
+                logger.info("Multi-TTFT Pareto Analysis Summary:")
+                for ttft in ttft_values:
+                    if ttft in results_dict:
+                        df = results_dict[ttft]
+                        logger.info(f"  TTFT={ttft}ms -> {len(df)} Pareto points")
+                        if len(df) > 0:
+                            logger.info(f"    tokens/s/user range: {df['tokens/s/user'].min():.2f} - {df['tokens/s/user'].max():.2f}")
+                            logger.info(f"    tokens/s/gpu range: {df['tokens/s/gpu'].min():.2f} - {df['tokens/s/gpu'].max():.2f}")
+                            logger.info(f"    num_total_gpus range: {df['num_total_gpus'].min()} - {df['num_total_gpus'].max()}")
+                    else:
+                        logger.info(f"  TTFT={ttft}ms -> No valid configurations found")
+                logger.info("=" * 60)
+                
+            except Exception as e:
+                combined_results_df = pd.DataFrame(columns=common.ColumnsDisagg + ['ttft_constraint'])
+                traceback_log = traceback.format_exc()
+                is_error = True
+                pareto_html = "Error occurred"
+                title = "Error"
+                
+        stdout_text = stdout_buffer.getvalue() + log_buffer.getvalue()
+        stderr_text = stderr_buffer.getvalue()
+        if is_error:
+            return gr.update(value=combined_results_df), gr.update(value="Error!!"), gr.update(value=""), gr.update(interactive=False, value="Error occurred"), gr.update(value=stdout_text+stderr_text+traceback_log)
+        return gr.update(value=combined_results_df), gr.update(value=pareto_html), gr.update(value=title), gr.update(interactive=True, value="Save for comparison"), gr.update(value=stdout_text+stderr_text+traceback_log)
+    
+    @staticmethod
     def run_estimation_disagg_pd_ratio(model_name, 
                                      isl, osl, ttft, tpot,
                                      nextn, nextn_accept_rates,

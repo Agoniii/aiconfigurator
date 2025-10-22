@@ -6,6 +6,7 @@ from aiconfigurator.webapp.components.static_tab import create_static_tab
 from aiconfigurator.webapp.components.agg_tab import create_agg_tab
 from aiconfigurator.webapp.components.agg_pareto_tab import create_agg_pareto_tab
 from aiconfigurator.webapp.components.disagg_pareto_tab import create_disagg_pareto_tab
+from aiconfigurator.webapp.components.disagg_pareto_multi_ttft_tab import create_disagg_pareto_multi_ttft_tab
 from aiconfigurator.webapp.components.pareto_comparison_tab import create_pareto_comparison_tab
 from aiconfigurator.webapp.components.disagg_pd_ratio_tab import create_disagg_pd_ratio_tab
 from aiconfigurator.webapp.components.disagg_pd_ratio_multi_sla_tab import create_disagg_pd_ratio_multi_sla_tab
@@ -79,6 +80,7 @@ def main(args):
                 agg_components = create_agg_tab(app_config)
             agg_pareto_components = create_agg_pareto_tab(app_config)
             disagg_pareto_components = create_disagg_pareto_tab(app_config)
+            disagg_pareto_multi_ttft_components = create_disagg_pareto_multi_ttft_tab(app_config)
             if app_config['enable_disagg_pd_ratio']:
                 disagg_pd_ratio_components = create_disagg_pd_ratio_tab(app_config)
                 disagg_pd_ratio_multi_sla_components = create_disagg_pd_ratio_multi_sla_tab(app_config)
@@ -90,8 +92,10 @@ def main(args):
             EventHandler.setup_agg_events(agg_components)
         EventHandler.setup_agg_pareto_events(agg_pareto_components)
         EventHandler.setup_disagg_pareto_events(disagg_pareto_components)
+        EventHandler.setup_disagg_pareto_multi_ttft_events(disagg_pareto_multi_ttft_components)
         EventHandler.setup_save_events(agg_pareto_components['result_name'], agg_pareto_components['save_btn'], agg_pareto_components['result_df'], pareto_comparison_components['candidates_dropdown'], pareto_results_state)
         EventHandler.setup_save_events(disagg_pareto_components['result_name'], disagg_pareto_components['save_btn'], disagg_pareto_components['result_df'], pareto_comparison_components['candidates_dropdown'], pareto_results_state)
+        EventHandler.setup_save_events(disagg_pareto_multi_ttft_components['result_name'], disagg_pareto_multi_ttft_components['save_btn'], disagg_pareto_multi_ttft_components['result_df'], pareto_comparison_components['candidates_dropdown'], pareto_results_state)
         if app_config['enable_disagg_pd_ratio']:
             EventHandler.setup_disagg_pd_ratio_events(disagg_pd_ratio_components)
             EventHandler.setup_disagg_pd_ratio_multi_sla_events(disagg_pd_ratio_multi_sla_components)
