@@ -18,6 +18,18 @@ def create_model_name_config(app_config):
         'model_name': model_name
     }
 
+def create_pd_system_config(app_config):
+    """create model name config components"""
+    system_choices = ['h20:h20', '6kd:h20:', '6kd:6kd']
+    with gr.Accordion("System"):
+        system = gr.Dropdown(choices=system_choices,
+                             label="Prefill/Decode System",
+                             value='h20:h20',
+                             interactive=True)
+    return {
+        'pd_system': system
+    }
+
 def create_system_config(app_config):
     """create system config components"""
     database_dict = get_all_databases()

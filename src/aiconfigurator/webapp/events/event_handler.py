@@ -30,7 +30,7 @@ class EventHandler:
                 components['model_misc_config_components']['nextn'],
                 components['model_misc_config_components']['nextn_accept_rates'],
                 components['mode'],
-                components['record_df'] 
+                components['record_df']
             ],
             outputs=[
                 components['summary_box'],
@@ -66,7 +66,7 @@ class EventHandler:
                 components['runtime_config_components']['isl'],
                 components['runtime_config_components']['osl'],
                 components['runtime_config_components']['ttft'],
-                components['runtime_config_components']['tpot'],                
+                components['runtime_config_components']['tpot'],
                 components['model_parallel_components']['tp_size'],
                 components['model_parallel_components']['pp_size'],
                 components['model_parallel_components']['dp_size'],
@@ -104,7 +104,7 @@ class EventHandler:
                 components['model_system_components']['sol_mode'],
                 components['runtime_config_components']['isl'],
                 components['runtime_config_components']['osl'],
-                components['runtime_config_components']['ttft'],                
+                components['runtime_config_components']['ttft'],
                 components['model_parallel_components']['num_gpus'],
                 components['model_parallel_components']['tp_size'],
                 components['model_parallel_components']['pp_size'],
@@ -147,7 +147,7 @@ class EventHandler:
                 components['runtime_config_components']['ttft'],
                 components['model_misc_config_components']['nextn'],
                 components['model_misc_config_components']['nextn_accept_rates'],
-                components['prefill_model_system_components']['system'],  # prefill              
+                components['prefill_model_system_components']['system'],  # prefill
                 components['prefill_model_system_components']['backend'],
                 components['prefill_model_system_components']['version'],
                 components['prefill_model_system_components']['sol_mode'],
@@ -157,27 +157,27 @@ class EventHandler:
                 components['prefill_model_parallel_components']['pp_size'],
                 components['prefill_model_parallel_components']['dp_size'],
                 components['prefill_model_parallel_components']['moe_tp_size'],
-                components['prefill_model_parallel_components']['moe_ep_size'], 
-                components['prefill_model_quant_components']['gemm_quant_mode'], 
+                components['prefill_model_parallel_components']['moe_ep_size'],
+                components['prefill_model_quant_components']['gemm_quant_mode'],
                 components['prefill_model_quant_components']['kvcache_quant_mode'],
-                components['prefill_model_quant_components']['fmha_quant_mode'],                
+                components['prefill_model_quant_components']['fmha_quant_mode'],
                 components['prefill_model_quant_components']['moe_quant_mode'],
                 components['prefill_model_quant_components']['comm_quant_mode'],
                 components['prefill_latency_correction_scale'],
-                components['decode_model_system_components']['system'], # decode        
+                components['decode_model_system_components']['system'], # decode
                 components['decode_model_system_components']['backend'],
                 components['decode_model_system_components']['version'],
                 components['decode_model_system_components']['sol_mode'],
                 components['decode_model_parallel_components']['num_worker'],
-                components['decode_model_parallel_components']['num_gpus'],                
+                components['decode_model_parallel_components']['num_gpus'],
                 components['decode_model_parallel_components']['tp_size'],
                 components['decode_model_parallel_components']['pp_size'],
                 components['decode_model_parallel_components']['dp_size'],
                 components['decode_model_parallel_components']['moe_tp_size'],
-                components['decode_model_parallel_components']['moe_ep_size'], 
-                components['decode_model_quant_components']['gemm_quant_mode'], 
+                components['decode_model_parallel_components']['moe_ep_size'],
+                components['decode_model_quant_components']['gemm_quant_mode'],
                 components['decode_model_quant_components']['kvcache_quant_mode'],
-                components['decode_model_quant_components']['fmha_quant_mode'],                
+                components['decode_model_quant_components']['fmha_quant_mode'],
                 components['decode_model_quant_components']['moe_quant_mode'],
                 components['decode_model_quant_components']['comm_quant_mode'],
                 components['decode_latency_correction_scale'],
@@ -218,7 +218,7 @@ class EventHandler:
                 components['runtime_config_components']['ttft'], # Now a Textbox for multi-TTFT
                 components['model_misc_config_components']['nextn'],
                 components['model_misc_config_components']['nextn_accept_rates'],
-                components['prefill_model_system_components']['system'],  # prefill              
+                components['prefill_model_system_components']['system'],  # prefill
                 components['prefill_model_system_components']['backend'],
                 components['prefill_model_system_components']['version'],
                 components['prefill_model_system_components']['sol_mode'],
@@ -228,27 +228,27 @@ class EventHandler:
                 components['prefill_model_parallel_components']['pp_size'],
                 components['prefill_model_parallel_components']['dp_size'],
                 components['prefill_model_parallel_components']['moe_tp_size'],
-                components['prefill_model_parallel_components']['moe_ep_size'], 
-                components['prefill_model_quant_components']['gemm_quant_mode'], 
+                components['prefill_model_parallel_components']['moe_ep_size'],
+                components['prefill_model_quant_components']['gemm_quant_mode'],
                 components['prefill_model_quant_components']['kvcache_quant_mode'],
-                components['prefill_model_quant_components']['fmha_quant_mode'],                
+                components['prefill_model_quant_components']['fmha_quant_mode'],
                 components['prefill_model_quant_components']['moe_quant_mode'],
                 components['prefill_model_quant_components']['comm_quant_mode'],
                 components['prefill_latency_correction_scale'],
-                components['decode_model_system_components']['system'], # decode        
+                components['decode_model_system_components']['system'], # decode
                 components['decode_model_system_components']['backend'],
                 components['decode_model_system_components']['version'],
                 components['decode_model_system_components']['sol_mode'],
                 components['decode_model_parallel_components']['num_worker'],
-                components['decode_model_parallel_components']['num_gpus'],                
+                components['decode_model_parallel_components']['num_gpus'],
                 components['decode_model_parallel_components']['tp_size'],
                 components['decode_model_parallel_components']['pp_size'],
                 components['decode_model_parallel_components']['dp_size'],
                 components['decode_model_parallel_components']['moe_tp_size'],
-                components['decode_model_parallel_components']['moe_ep_size'], 
-                components['decode_model_quant_components']['gemm_quant_mode'], 
+                components['decode_model_parallel_components']['moe_ep_size'],
+                components['decode_model_quant_components']['gemm_quant_mode'],
                 components['decode_model_quant_components']['kvcache_quant_mode'],
-                components['decode_model_quant_components']['fmha_quant_mode'],                
+                components['decode_model_quant_components']['fmha_quant_mode'],
                 components['decode_model_quant_components']['moe_quant_mode'],
                 components['decode_model_quant_components']['comm_quant_mode'],
                 components['decode_latency_correction_scale'],
@@ -278,6 +278,30 @@ class EventHandler:
         EventHandler.setup_model_name_events(components['model_name_components'], components['decode_model_quant_components'], components['decode_model_parallel_components'], components['model_misc_config_components'])
 
     @staticmethod
+    def setup_disagg_pd_ratio_china_events(components):
+        components['estimate_btn'].click(
+            fn=EventFn.run_estimation_disagg_pd_ratio_china,
+            inputs=[
+                components['model_name_components']['model_name'],# model
+                components['runtime_config_components']['isl'], # runtime
+                components['runtime_config_components']['osl'],
+                components['model_system_components']['pd_system'], # prefill/decode system
+            ],
+            outputs=[
+                components['record_df'],
+                components['pivot_df'],
+                components['debugging_box']
+            ]
+        )
+        components['download_btn'].click(
+            fn=EventFn.generate_csv,
+            inputs=components['record_df'],
+            outputs=components['output_file']
+        )
+        # Note: For this simplified mode, model/system changes don't require event setup
+        # as configurations are auto-determined
+
+    @staticmethod
     def setup_disagg_pd_ratio_events(components):
         components['estimate_btn'].click(
             fn=EventFn.run_estimation_disagg_pd_ratio,
@@ -286,24 +310,24 @@ class EventHandler:
                 components['runtime_config_components']['isl'], # runtime
                 components['runtime_config_components']['osl'],
                 components['runtime_config_components']['ttft'],
-                components['runtime_config_components']['tpot'],                
+                components['runtime_config_components']['tpot'],
                 components['model_misc_config_components']['nextn'],
                 components['model_misc_config_components']['nextn_accept_rates'],
-                components['prefill_model_system_components']['system'],  # prefill              
+                components['prefill_model_system_components']['system'],  # prefill
                 components['prefill_model_system_components']['backend'],
                 components['prefill_model_system_components']['version'],
-                components['prefill_model_system_components']['sol_mode'], 
+                components['prefill_model_system_components']['sol_mode'],
                 components['prefill_model_parallel_components']['tp_size'],
                 components['prefill_model_parallel_components']['pp_size'],
                 components['prefill_model_parallel_components']['dp_size'],
                 components['prefill_model_parallel_components']['moe_tp_size'],
-                components['prefill_model_parallel_components']['moe_ep_size'],                
-                components['prefill_model_quant_components']['gemm_quant_mode'], 
+                components['prefill_model_parallel_components']['moe_ep_size'],
+                components['prefill_model_quant_components']['gemm_quant_mode'],
                 components['prefill_model_quant_components']['kvcache_quant_mode'],
-                components['prefill_model_quant_components']['fmha_quant_mode'],                
+                components['prefill_model_quant_components']['fmha_quant_mode'],
                 components['prefill_model_quant_components']['moe_quant_mode'],
                 components['prefill_model_quant_components']['comm_quant_mode'],
-                components['decode_model_system_components']['system'], # decode        
+                components['decode_model_system_components']['system'], # decode
                 components['decode_model_system_components']['backend'],
                 components['decode_model_system_components']['version'],
                 components['decode_model_system_components']['sol_mode'],
@@ -311,10 +335,10 @@ class EventHandler:
                 components['decode_model_parallel_components']['pp_size'],
                 components['decode_model_parallel_components']['dp_size'],
                 components['decode_model_parallel_components']['moe_tp_size'],
-                components['decode_model_parallel_components']['moe_ep_size'], 
-                components['decode_model_quant_components']['gemm_quant_mode'], 
+                components['decode_model_parallel_components']['moe_ep_size'],
+                components['decode_model_quant_components']['gemm_quant_mode'],
                 components['decode_model_quant_components']['kvcache_quant_mode'],
-                components['decode_model_quant_components']['fmha_quant_mode'],                
+                components['decode_model_quant_components']['fmha_quant_mode'],
                 components['decode_model_quant_components']['moe_quant_mode'],
                 components['decode_model_quant_components']['comm_quant_mode'],
             ],
@@ -348,21 +372,21 @@ class EventHandler:
                 components['runtime_config_components']['tpot'],
                 components['model_misc_config_components']['nextn'],
                 components['model_misc_config_components']['nextn_accept_rates'],
-                components['prefill_model_system_components']['system'],  # prefill              
+                components['prefill_model_system_components']['system'],  # prefill
                 components['prefill_model_system_components']['backend'],
                 components['prefill_model_system_components']['version'],
-                components['prefill_model_system_components']['sol_mode'], 
+                components['prefill_model_system_components']['sol_mode'],
                 components['prefill_model_parallel_components']['tp_size'],
                 components['prefill_model_parallel_components']['pp_size'],
                 components['prefill_model_parallel_components']['dp_size'],
                 components['prefill_model_parallel_components']['moe_tp_size'],
-                components['prefill_model_parallel_components']['moe_ep_size'],                
-                components['prefill_model_quant_components']['gemm_quant_mode'], 
+                components['prefill_model_parallel_components']['moe_ep_size'],
+                components['prefill_model_quant_components']['gemm_quant_mode'],
                 components['prefill_model_quant_components']['kvcache_quant_mode'],
-                components['prefill_model_quant_components']['fmha_quant_mode'],                
+                components['prefill_model_quant_components']['fmha_quant_mode'],
                 components['prefill_model_quant_components']['moe_quant_mode'],
                 components['prefill_model_quant_components']['comm_quant_mode'],
-                components['decode_model_system_components']['system'], # decode        
+                components['decode_model_system_components']['system'], # decode
                 components['decode_model_system_components']['backend'],
                 components['decode_model_system_components']['version'],
                 components['decode_model_system_components']['sol_mode'],
@@ -370,10 +394,10 @@ class EventHandler:
                 components['decode_model_parallel_components']['pp_size'],
                 components['decode_model_parallel_components']['dp_size'],
                 components['decode_model_parallel_components']['moe_tp_size'],
-                components['decode_model_parallel_components']['moe_ep_size'], 
-                components['decode_model_quant_components']['gemm_quant_mode'], 
+                components['decode_model_parallel_components']['moe_ep_size'],
+                components['decode_model_quant_components']['gemm_quant_mode'],
                 components['decode_model_quant_components']['kvcache_quant_mode'],
-                components['decode_model_quant_components']['fmha_quant_mode'],                
+                components['decode_model_quant_components']['fmha_quant_mode'],
                 components['decode_model_quant_components']['moe_quant_mode'],
                 components['decode_model_quant_components']['comm_quant_mode'],
             ],
@@ -432,7 +456,7 @@ class EventHandler:
                 model_system_components['system']
             ]
         )
-        
+
         model_system_components['system'].change(
             fn=EventFn.update_backend_choices,
             inputs=[model_system_components['system']],
@@ -444,7 +468,7 @@ class EventHandler:
             inputs=[model_system_components['system'], model_system_components['backend']],
             outputs=[model_system_components['version']]
         )
-        
+
         model_system_components['version'].change(
             fn=EventFn.update_quant_mode_choices,
             inputs=[model_name_components['model_name'], model_system_components['system'], model_system_components['backend'], model_system_components['version']],
@@ -455,17 +479,17 @@ class EventHandler:
                 model_quant_components['moe_quant_mode']
             ]
         )
-    
+
     @staticmethod
     def setup_model_name_events(model_name_components, model_quant_components, model_parallel_components, model_misc_config_components):
         model_name_components['model_name'].change(
             fn=EventFn.update_model_related_components,
             inputs=[model_name_components['model_name']],
             outputs=[
-                model_misc_config_components['nextn'], 
+                model_misc_config_components['nextn'],
                 model_misc_config_components['nextn_accept_rates'],
                 model_quant_components['moe_quant_mode'],
-                model_parallel_components['moe_tp_size'],                
+                model_parallel_components['moe_tp_size'],
                 model_parallel_components['moe_ep_size'],
                 model_parallel_components['dp_size'],
             ]

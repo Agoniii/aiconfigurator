@@ -126,6 +126,12 @@ ColumnsDisagg = ['model', 'isl', 'osl',
                  '(d)memory',
                  '(d)backend', '(d)version', '(d)system']
 
+ColumnsDisaggPD = ['model', 'isl', 'osl', 'ttft(ms)', 'tpot(ms)', 
+                   '(p)workers', '(p)global_bs', '(p)seq/s', '(p)memory(GiB)', 
+                   '(d)workers', '(d)global_bs', '(d)seq/s', '(d)memory(GiB)',
+                   'pd_ratio', 'total_workers', 'total_seq/s', 
+                   '(p)system', '(d)system']
+
 class SOLMode(Enum):
     """
     SOL mode for database.

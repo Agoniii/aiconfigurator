@@ -109,15 +109,17 @@ class BaseModel(object):
         self._context_length = context_length
         self._num_kv_heads_per_GPU = (self._num_kv_heads+model_config.tp_size-1)//model_config.tp_size
 
+        self._nextn = model_config.nextn
+        self._nextn_accept_rates = model_config.nextn_accept_rates
+
         if self._num_layers % model_config.pp_size != 0:
-            logger.warning(f"num_layers {self._num_layers} is not divisible by pp_size {model_config.pp_size}. \
-                           this will introduce additional rounding error. Currently we're nothing to correct this.")
+            logger.warning(f"num_layers {self._num_layers} is not divisible by pp_size {model_config.pp_size}. " \
+                           "This will introduce additional rounding error. Skipping this combination.")
+            return
 
         assert(self._num_heads % model_config.tp_size == 0 and self._num_heads // model_config.tp_size >= 4), \
             f"num_heads {self._num_heads} should be divisible by tp_size {model_config.tp_size} and the division result should be >= 4"
 
-        self._nextn = model_config.nextn
-        self._nextn_accept_rates = model_config.nextn_accept_rates
 
 class GPTModel(BaseModel):
     """

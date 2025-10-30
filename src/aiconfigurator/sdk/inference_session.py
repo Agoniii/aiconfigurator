@@ -23,16 +23,16 @@ class InferenceSession(object):
         model (models.BaseModel): the model to run inference
         database (perf_database.PerfDatabase): the database to run inference
         backend (backend.Backend): the backend to run inference
-    
+
     Methods:
         run_static (static, static_ctx, static_gen): to support static batching and disagg, returns details of a static run
         run_agg (static, static_ctx, static_gen): run agg inference, returns summary of the perf result with given agg config and runtime config (concurrency)
         find_best_agg_result_under_constraints (static, static_ctx, static_gen):
-            find the best agg result under constraints, returns summary 
+            find the best agg result under constraints, returns summary
             which contains all the possible agg config and perf that matchs SLA.
     """
-    def __init__(self, model:models.BaseModel, 
-                 database:perf_database.PerfDatabase, 
+    def __init__(self, model:models.BaseModel,
+                 database:perf_database.PerfDatabase,
                  backend:BaseBackend) -> None:
         """
         Initialize the InferenceSession
@@ -68,7 +68,7 @@ class InferenceSession(object):
             InferenceSummary: the summary of the inference result
         """
         return self._backend.run_agg(self._model, self._database, runtime_config, **kwargs)
-    
+
     # Optimization
     def find_best_agg_result_under_constraints(self, runtime_config:config.RuntimeConfig, **kwargs) -> InferenceSummary:
         """
@@ -83,7 +83,7 @@ class InferenceSession(object):
         """
         return self._backend.find_best_agg_result_under_constraints(self._model, self._database, runtime_config, **kwargs)
 
-    
+
 class DisaggInferenceSession(object):
     '''
     Disaggregated inference session
@@ -102,21 +102,21 @@ class DisaggInferenceSession(object):
         decode_backend (backend.Backend): the backend to run decode
 
     Methods:
-        run_disagg (model_name, runtime_config, prefill_model_config, prefill_batch_size, 
+        run_disagg (model_name, runtime_config, prefill_model_config, prefill_batch_size,
                     prefill_num_worker, decode_model_config, decode_batch_size, decode_num_worker)
             run disagg with given prefill/decode worker info
-        find_best_disagg_result_under_constraints (model_name,runtime_config, prefill_model_config, 
-                    prefill_parallel_config_list, prefill_max_num_tokens, prefill_num_worker_list, 
-                    decode_model_config, decode_parallel_config_list, decode_max_num_tokens, 
+        find_best_disagg_result_under_constraints (model_name,runtime_config, prefill_model_config,
+                    prefill_parallel_config_list, prefill_max_num_tokens, prefill_num_worker_list,
+                    decode_model_config, decode_parallel_config_list, decode_max_num_tokens,
                     decode_num_worker_list, num_gpu_list)
             find the best disagg result under constraints
         set_latency_correction_scales (prefill_latency_correction_scale, decode_latency_correction_scale):
             set the correction scales for better alignment with real system
     '''
-    def __init__(self, 
-                 prefill_database:perf_database.PerfDatabase, 
+    def __init__(self,
+                 prefill_database:perf_database.PerfDatabase,
                  prefill_backend:BaseBackend,
-                 decode_database:perf_database.PerfDatabase, 
+                 decode_database:perf_database.PerfDatabase,
                  decode_backend:BaseBackend) -> None:
         """
         Initialize the DisaggInferenceSession
@@ -143,14 +143,14 @@ class DisaggInferenceSession(object):
         self._prefill_latency_correction_scale = prefill_latency_correction_scale
         self._decode_latency_correction_scale = decode_latency_correction_scale
 
-    def _get_disagg_summary_df(self, prefill_summary_df:pd.DataFrame, 
-                               prefill_num_worker:int, 
-                               decode_summary_df:pd.DataFrame, 
+    def _get_disagg_summary_df(self, prefill_summary_df:pd.DataFrame,
+                               prefill_num_worker:int,
+                               decode_summary_df:pd.DataFrame,
                                decode_num_worker:int) -> pd.DataFrame:
         """
         Get the disagg summary df based on prefill and decode summary df
         """
-        seq_s = min(prefill_summary_df['seq/s']*prefill_num_worker*self._RATE_MATCHING_PREFILL_DEGRADATION_FACTOR, 
+        seq_s = min(prefill_summary_df['seq/s']*prefill_num_worker*self._RATE_MATCHING_PREFILL_DEGRADATION_FACTOR,
         decode_summary_df['seq/s']*decode_num_worker*self._RATE_MATCHING_DECODE_DEGRADATION_FACTOR)
         prefill_gpus = prefill_summary_df['pp']*prefill_summary_df['tp']*prefill_summary_df['dp']
         decode_gpus = decode_summary_df['pp']*decode_summary_df['tp']*decode_summary_df['dp']
@@ -174,7 +174,7 @@ class DisaggInferenceSession(object):
         tokens_s_user = decode_summary_df['tokens/s/user']
         p_seq_s_worker = prefill_summary_df['seq/s']
         d_seq_s_worker = decode_summary_df['seq/s']
-        num_total_gpus = prefill_gpus * prefill_num_worker + decode_gpus * decode_num_worker        
+        num_total_gpus = prefill_gpus * prefill_num_worker + decode_gpus * decode_num_worker
         p_tp = prefill_summary_df['tp']
         p_pp = prefill_summary_df['pp']
         p_dp = prefill_summary_df['dp']
@@ -205,26 +205,26 @@ class DisaggInferenceSession(object):
         d_backend = decode_summary_df['backend']
         d_version = decode_summary_df['version']
         d_system = decode_summary_df['system']
-                
-        return pd.DataFrame([[model_name, isl, osl, 
-                              concurrency, request_rate, p_bs, p_global_bs, p_workers, d_bs, d_global_bs, d_workers, 
-                              ttft, tpot, seq_s, seq_s_gpu, tokens_s, tokens_s_gpu, tokens_s_user, p_seq_s_worker, d_seq_s_worker, 
+
+        return pd.DataFrame([[model_name, isl, osl,
+                              concurrency, request_rate, p_bs, p_global_bs, p_workers, d_bs, d_global_bs, d_workers,
+                              ttft, tpot, seq_s, seq_s_gpu, tokens_s, tokens_s_gpu, tokens_s_user, p_seq_s_worker, d_seq_s_worker,
                               num_total_gpus,
-                              p_tp, p_pp, p_dp, p_moe_tp, p_moe_ep, p_parallel, 
-                              p_gemm, p_kvcache, p_fmha, p_moe, p_comm, p_memory, 
-                              p_backend, p_version, p_system, 
-                              d_tp, d_pp, d_dp, d_moe_tp, d_moe_ep, d_parallel, 
-                              d_gemm, d_kvcache, d_fmha, d_moe, d_comm, d_memory, 
+                              p_tp, p_pp, p_dp, p_moe_tp, p_moe_ep, p_parallel,
+                              p_gemm, p_kvcache, p_fmha, p_moe, p_comm, p_memory,
+                              p_backend, p_version, p_system,
+                              d_tp, d_pp, d_dp, d_moe_tp, d_moe_ep, d_parallel,
+                              d_gemm, d_kvcache, d_fmha, d_moe, d_comm, d_memory,
                               d_backend, d_version, d_system]], columns=common.ColumnsDisagg).round(3)
 
-    def run_disagg(self, 
-                   model_name : str, 
-                   runtime_config : config.RuntimeConfig, 
-                   prefill_model_config : config.ModelConfig, 
-                   prefill_batch_size : int, 
-                   prefill_num_worker : int, 
-                   decode_model_config : config.ModelConfig, 
-                   decode_batch_size : int, 
+    def run_disagg(self,
+                   model_name : str,
+                   runtime_config : config.RuntimeConfig,
+                   prefill_model_config : config.ModelConfig,
+                   prefill_batch_size : int,
+                   prefill_num_worker : int,
+                   decode_model_config : config.ModelConfig,
+                   decode_batch_size : int,
                    decode_num_worker : int) -> InferenceSummary:
         '''
         Run disagg with given prefill/decode worker info
@@ -250,7 +250,7 @@ class DisaggInferenceSession(object):
         decode_sess = InferenceSession(model=decode_model,
                                         database=self._decode_database,
                                         backend=self._decode_backend)
-                
+
         prefill_runtime_config = copy.deepcopy(runtime_config)
         prefill_runtime_config.batch_size = prefill_batch_size
         prefill_summary = prefill_sess.run_static(mode='static_ctx', runtime_config=prefill_runtime_config)
@@ -262,18 +262,18 @@ class DisaggInferenceSession(object):
         disagg_summary = InferenceSummary(runtime_config=runtime_config)
         disagg_summary.set_summary_df(disagg_summary_df)
         return disagg_summary
-    
+
     # optimization
-    def find_best_disagg_result_under_constraints(self, 
-                                                 model_name : str, 
-                                                 runtime_config : config.RuntimeConfig, 
-                                                 prefill_model_config : config.ModelConfig, 
-                                                 prefill_parallel_config_list : List[Tuple[int, int, int, int, int]], 
-                                                 prefill_max_num_tokens : int, 
-                                                 prefill_num_worker_list : List[int], 
-                                                 decode_model_config : config.ModelConfig, 
-                                                 decode_parallel_config_list : List[Tuple[int, int, int, int, int]], 
-                                                 decode_max_num_tokens : int, 
+    def find_best_disagg_result_under_constraints(self,
+                                                 model_name : str,
+                                                 runtime_config : config.RuntimeConfig,
+                                                 prefill_model_config : config.ModelConfig,
+                                                 prefill_parallel_config_list : List[Tuple[int, int, int, int, int]],
+                                                 prefill_max_num_tokens : int,
+                                                 prefill_num_worker_list : List[int],
+                                                 decode_model_config : config.ModelConfig,
+                                                 decode_parallel_config_list : List[Tuple[int, int, int, int, int]],
+                                                 decode_max_num_tokens : int,
                                                  decode_num_worker_list : List[int],
                                                  num_gpu_list : Optional[List[int]]) -> Optional[InferenceSummary]:
         '''
@@ -303,12 +303,12 @@ class DisaggInferenceSession(object):
             Optional[InferenceSummary]: the summary of the inference result, contains all the possible disagg config and perf that matchs SLA.
         '''
 
-        def _match_workers(prefill_throughput:float, 
-                            prefill_gpus:int, 
-                            decode_throughput:float, 
-                            decode_gpus:int, 
-                            prefill_num_worker_list:List[int], 
-                            decode_num_worker_list:List[int], 
+        def _match_workers(prefill_throughput:float,
+                            prefill_gpus:int,
+                            decode_throughput:float,
+                            decode_gpus:int,
+                            prefill_num_worker_list:List[int],
+                            decode_num_worker_list:List[int],
                             num_gpu_list:Optional[List[int]],
                             rate_matching_prefill_degradation_factor:float,
                             rate_matching_decode_degradation_factor:float) -> Tuple[int, int]:
@@ -341,10 +341,10 @@ class DisaggInferenceSession(object):
             return prefill_opt_num_worker, decode_opt_num_worker
 
 
-        def _get_summary_df(model_config:config.ModelConfig, 
-                           parallel_config_list:List[Tuple[int, int, int, int, int]], 
-                           b_list:List[int], 
-                           runtime_config:config.RuntimeConfig, 
+        def _get_summary_df(model_config:config.ModelConfig,
+                           parallel_config_list:List[Tuple[int, int, int, int, int]],
+                           b_list:List[int],
+                           runtime_config:config.RuntimeConfig,
                            mode:str,
                            latency_correction_scale:float = 1.0) -> pd.DataFrame:
             """
@@ -354,7 +354,7 @@ class DisaggInferenceSession(object):
 
             for parallel_config in parallel_config_list:
                 tp_size, pp_size, dp_size, moe_tp_size, moe_ep_size = parallel_config
-                logger.debug(f"Getting candidate workers with parallel config: tp={tp_size}, pp={pp_size}, dp={dp_size}, moe_tp={moe_tp_size}, moe_ep={moe_ep_size}")                
+                logger.debug(f"Getting candidate workers with parallel config: tp={tp_size}, pp={pp_size}, dp={dp_size}, moe_tp={moe_tp_size}, moe_ep={moe_ep_size}")
 
                 try:
                     overwritten_model_config = copy.deepcopy(model_config)
@@ -363,7 +363,16 @@ class DisaggInferenceSession(object):
                     overwritten_model_config.moe_tp_size = moe_tp_size
                     overwritten_model_config.moe_ep_size = moe_ep_size
                     overwritten_model_config.attention_dp_size = dp_size
+
                     model = models.get_model(model_name=model_name, model_config=overwritten_model_config, backend_name=self._prefill_backend.name.value)
+                    if model._num_layers % pp_size != 0:
+                        logger.warning(f"num_layers {model._num_layers} is not divisible by pp_size {pp_size}. " \
+                                       "This will introduce additional rounding error. Skipping this combination.")
+                        continue
+                    if model._num_heads % tp_size != 0:
+                        logger.warning(f"num_heads {model._num_heads} is not divisible by tp_size {tp_size}. " \
+                                       "This will introduce additional rounding error. Skipping this combination.")
+                        continue
                     if mode == 'static_ctx':
                         sess = InferenceSession(model=model, database=self._prefill_database, backend=self._prefill_backend)
                     else:
@@ -381,16 +390,16 @@ class DisaggInferenceSession(object):
                     logger.error(f"Error getting candidate workers with parallel config: tp={tp_size}, pp={pp_size}, dp={dp_size}, moe_tp={moe_tp_size}, moe_ep={moe_ep_size} skip this combination: {traceback.format_exc()}")
                     continue
             return summary_df
-        
 
-        def _find_best_result_under_constraints_with_diversity(ttft:float, 
-                                               tpot:float, 
-                                               prefill_summary_df:pd.DataFrame, 
-                                               decode_summary_df:pd.DataFrame, 
-                                               return_top_k:int, 
+
+        def _find_best_result_under_constraints_with_diversity(ttft:float,
+                                               tpot:float,
+                                               prefill_summary_df:pd.DataFrame,
+                                               decode_summary_df:pd.DataFrame,
+                                               return_top_k:int,
                                                num_gpu_list:Optional[List[int]],
                                                rate_matching_prefill_degradation_factor:float,
-                                               rate_matching_decode_degradation_factor:float) -> InferenceSummary: 
+                                               rate_matching_decode_degradation_factor:float) -> InferenceSummary:
             """
             Find the best result under constraints with diversity
             """
@@ -401,7 +410,7 @@ class DisaggInferenceSession(object):
             #   do the rate matching and sort the result by category - throughput.
             # 2. for prefill, follow two rules: high throughput, if at same level, choose the one with small batchsize.
             #   add one func for correct ttft (we have some fomula, just leave it blank for now)
-            # 3. prefill/decode correction are already applied to workers. 
+            # 3. prefill/decode correction are already applied to workers.
             #   Additioanl correction can be a degradation factor for the final result during the rate matching process.
             # 4. rate matching. The prefill throughput should be 1.x larger than the decode throughput. 1.x is an empirical value.
             #   Default is 1.1.
@@ -415,7 +424,7 @@ class DisaggInferenceSession(object):
             # concurrency / num_prefill_workers = local_concurrency(lc); N x concurrency requests
             # formula = (lc * (lc+1) / 2 + lc * (N-1) )/lc/N
             # if we use N=10, it's lc/20+0.95. assume lc can be 15-20, 1.8 is a reasonable correction factor.
-            # as we need to get the lc after rate matching, we cannot get the exact value now. 
+            # as we need to get the lc after rate matching, we cannot get the exact value now.
             # Let's make it simple to do pre-correction instead of post-correction.
             correction_factor = 1.8  # let's make it simple for now.
             prefill_candidates = prefill_summary_df.assign(
@@ -475,11 +484,11 @@ class DisaggInferenceSession(object):
             disagg_summary_df = disagg_summary_df.sort_values(by=['tokens/s/gpu'], ascending=[False]).head(return_top_k).reset_index(drop=True)
             return disagg_summary_df
 
-        def _find_best_result_under_constraints(ttft:float, 
-                                               tpot:float, 
-                                               prefill_summary_df:pd.DataFrame, 
-                                               decode_summary_df:pd.DataFrame, 
-                                               return_top_k:int, 
+        def _find_best_result_under_constraints(ttft:float,
+                                               tpot:float,
+                                               prefill_summary_df:pd.DataFrame,
+                                               decode_summary_df:pd.DataFrame,
+                                               return_top_k:int,
                                                num_gpu_list:Optional[List[int]]) -> InferenceSummary:
             """
             Find the best result under constraints
@@ -498,7 +507,7 @@ class DisaggInferenceSession(object):
                 logger.debug(f"No prefill worker candidates found for ttft {ttft}ms.")
                 return None
             prefill_worker_candidates = prefill_worker_candidates.sort_values(by=['seq/s/gpu'], ascending=False).reset_index(drop=True).head(MAX_NUM_PREFILL_worker_CANDIDATES)
-        
+
             logger.debug(f"num decode worker candidates: {len(decode_worker_candidates)} num prefill worker candidates: {len(prefill_worker_candidates)}")
 
             disagg_summary_df = pd.DataFrame(columns=common.ColumnsDisagg)
@@ -535,7 +544,7 @@ class DisaggInferenceSession(object):
         if prefill_max_num_tokens < runtime_config.isl:
             logger.warning(f"prefill_max_num_tokens is less than runtime_config.isl, set to runtime_config.isl")
             prefill_max_num_tokens = runtime_config.isl
-        
+
         max_prefill_batch_size = prefill_max_num_tokens // runtime_config.isl
         prefill_batch_size_range = range(1, max_prefill_batch_size+1)
 
@@ -543,41 +552,41 @@ class DisaggInferenceSession(object):
         disagg_summary = InferenceSummary(runtime_config=runtime_config)
         disagg_summary_df = pd.DataFrame(columns=common.ColumnsDisagg)
         disagg_summary.set_summary_df(disagg_summary_df)
-        
+
         # find prefill and decode workers
         prefill_summary_df = _get_summary_df(
-            prefill_model_config, 
-            prefill_parallel_config_list, 
-            prefill_batch_size_range, 
-            runtime_config, 
+            prefill_model_config,
+            prefill_parallel_config_list,
+            prefill_batch_size_range,
+            runtime_config,
             'static_ctx',
             latency_correction_scale=self._prefill_latency_correction_scale,
             )
         decode_summary_df = _get_summary_df(
-            decode_model_config, 
-            decode_parallel_config_list, 
-            decode_batch_size_range, 
-            runtime_config, 
+            decode_model_config,
+            decode_parallel_config_list,
+            decode_batch_size_range,
+            runtime_config,
             'static_gen',
             latency_correction_scale=self._decode_latency_correction_scale
             )
         if len(prefill_summary_df) == 0 or len(decode_summary_df) == 0:
             logger.debug(f"No prefill or decode workers found for {model_name} with given configs.")
             return disagg_summary
-        
+
         # find best result under constraints
         ttft = runtime_config.ttft
         tpot_list = runtime_config.tpot if isinstance(runtime_config.tpot, list) else [runtime_config.tpot]
         for tpot in tpot_list:
             logger.debug(f"Finding best result under constraints for tpot={tpot}ms...")
             filtered_disagg_summary_df = _find_best_result_under_constraints_with_diversity(
-                ttft=ttft, 
-                tpot=tpot, 
-                prefill_summary_df=prefill_summary_df, 
-                decode_summary_df=decode_summary_df, 
-                return_top_k=5, 
-                num_gpu_list=num_gpu_list, 
-                rate_matching_prefill_degradation_factor=self._RATE_MATCHING_PREFILL_DEGRADATION_FACTOR, 
+                ttft=ttft,
+                tpot=tpot,
+                prefill_summary_df=prefill_summary_df,
+                decode_summary_df=decode_summary_df,
+                return_top_k=5,
+                num_gpu_list=num_gpu_list,
+                rate_matching_prefill_degradation_factor=self._RATE_MATCHING_PREFILL_DEGRADATION_FACTOR,
                 rate_matching_decode_degradation_factor=self._RATE_MATCHING_DECODE_DEGRADATION_FACTOR
                 )
             if filtered_disagg_summary_df is not None:
