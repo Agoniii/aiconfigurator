@@ -930,6 +930,308 @@ class EventFn:
         )
 
     @staticmethod
+    def run_estimation_disagg_pd_ratio_china(model_name, isl, osl, pd_system):
+        """
+        Simplified P/D ratio analysis for China configurations.
+
+        Args:
+            model_name: Model name (e.g., 'DEEPSEEK_V3')
+            isl: Input sequence length
+            osl: Output sequence length
+            pd_system: System configuration string (e.g., 'h20:h20', '6kd:h20', '6kd:6kd')
+
+        Returns:
+            DataFrame with P/D worker ratios for different TTFT/TPOT combinations
+        """
+
+        # System name mapping
+        # TODO(XUE) Use the actual system name from the database
+        system_mapping = {
+            "h20": "h200_sxm",
+            "6kd": "h100_sxm",
+        }
+
+        # TODO(XUE) check if the default values are correct
+        # prefill config
+        prefill_num_worker = -1
+        prefill_num_gpus = [8]
+        prefill_tp_size = [1, 2, 4, 8]
+        prefill_pp_size = [1, 2, 4, 8]
+        prefill_moe_tp_size = [1, 2, 4, 8]
+        prefill_moe_ep_size = [1, 2, 4, 8]
+        prefill_dp_size = [1, 2, 4, 8]
+
+        # decode config
+        decode_num_worker = -1
+        decode_num_gpus = [8]
+        decode_tp_size = [1, 2, 4, 8]
+        decode_pp_size = [1, 2, 4, 8]
+        decode_moe_tp_size = [1, 2, 4, 8]
+        decode_moe_ep_size = [1, 2, 4, 8]
+        decode_dp_size = [1, 2, 4, 8]
+
+        # latency correction scale
+        prefill_latency_correction_scale = 1.1
+        decode_latency_correction_scale = 1.08
+
+        # nextn and nextn_accept_rates
+        nextn_accept_rates = [0.85, 0.2, 0.0, 0.0, 0.0]
+        nextn = 0  # No speculative decoding
+
+        # advanced config
+        num_gpu_list = []
+        max_num_gpu = 0
+        prefill_max_num_worker = 32
+        decode_max_num_worker = 32
+        prefill_max_batch_size = 1
+        decode_max_batch_size = 512
+
+        is_error = False
+        traceback_log = ""
+        stdout_buffer = StringIO()
+        stderr_buffer = StringIO()
+        with (
+            contextlib.redirect_stdout(stdout_buffer),
+            contextlib.redirect_stderr(stderr_buffer),
+            LogCapture() as (logger, log_buffer),
+        ):
+            try:
+                # Parse pd_system string (e.g., 'h20:h20' -> prefill='h200_sxm', decode='h200_sxm')
+                parts = pd_system.split(":")
+                if len(parts) != 2:
+                    raise ValueError(
+                        f"Invalid pd_system format: {pd_system}. Expected format: 'prefill_system:decode_system'"
+                    )
+
+                prefill_system_short, decode_system_short = parts[0].strip(), parts[1].strip()
+                prefill_system_name = system_mapping[prefill_system_short]
+                decode_system_name = system_mapping[decode_system_short]
+
+                logger.info(f"Parsed system configuration: Prefill={prefill_system_name}, Decode={decode_system_name}")
+
+                # Use trtllm backend
+                backend_name = "trtllm"
+                database_dict = get_all_databases()
+                prefill_version = sorted(database_dict[prefill_system_name][backend_name].keys())[-1]
+                decode_version = sorted(list[str](database_dict[decode_system_name][backend_name].keys()))[-1]
+
+                # Get actual database
+                prefill_database = copy.deepcopy(get_database(prefill_system_name, backend_name, prefill_version))
+                decode_database = copy.deepcopy(get_database(decode_system_name, backend_name, decode_version))
+
+                if prefill_database is None:
+                    raise ValueError(
+                        f"Database not found for prefill: {prefill_system_name}/{backend_name}/{prefill_version}"
+                    )
+                if decode_database is None:
+                    raise ValueError(
+                        f"Database not found for decode: {decode_system_name}/{backend_name}/{decode_version}"
+                    )
+
+                # set model configs
+                prefill_model_config = config.ModelConfig(
+                    tp_size=1,
+                    pp_size=1,
+                    attention_dp_size=1,
+                    moe_tp_size=1,
+                    moe_ep_size=1,
+                    gemm_quant_mode=common.GEMMQuantMode.fp8,
+                    kvcache_quant_mode=common.KVCacheQuantMode.fp8,
+                    fmha_quant_mode=common.FMHAQuantMode.float16,
+                    moe_quant_mode=common.MoEQuantMode.fp8_block,
+                    comm_quant_mode=common.CommQuantMode.fp8,
+                    nextn=nextn,
+                    nextn_accept_rates=nextn_accept_rates,
+                )
+
+                decode_model_config = config.ModelConfig(
+                    tp_size=1,
+                    pp_size=1,
+                    attention_dp_size=1,
+                    moe_tp_size=1,
+                    moe_ep_size=1,
+                    gemm_quant_mode=common.GEMMQuantMode.fp8,
+                    kvcache_quant_mode=common.KVCacheQuantMode.fp8,
+                    fmha_quant_mode=common.FMHAQuantMode.float16,
+                    moe_quant_mode=common.MoEQuantMode.fp8_block,
+                    comm_quant_mode=common.CommQuantMode.fp8,
+                    nextn=nextn,
+                    nextn_accept_rates=nextn_accept_rates,
+                )
+
+                is_moe = check_is_moe(model_name)
+
+                # Enumerate parallel configs
+
+                prefill_parallel_config_list = pareto_analysis.enumerate_parallel_config(
+                    num_gpu_list=prefill_num_gpus,
+                    tp_list=prefill_tp_size,
+                    pp_list=prefill_pp_size,
+                    moe_tp_list=prefill_moe_tp_size,
+                    moe_ep_list=prefill_moe_ep_size,
+                    dp_list=prefill_dp_size,
+                    is_moe=is_moe,
+                    backend=common.BackendName(backend_name),
+                )
+                decode_parallel_config_list = pareto_analysis.enumerate_parallel_config(
+                    num_gpu_list=decode_num_gpus,
+                    tp_list=decode_tp_size,
+                    pp_list=decode_pp_size,
+                    moe_tp_list=decode_moe_tp_size,
+                    moe_ep_list=decode_moe_ep_size,
+                    dp_list=decode_dp_size,
+                    is_moe=is_moe,
+                    backend=common.BackendName(backend_name),
+                )
+
+                if len(prefill_parallel_config_list) == 0 or len(decode_parallel_config_list) == 0:
+                    logger.error(
+                        f"No valid parallel config found for {model_name} in the prefill or decode system. "
+                        "Please double check your parallel configs."
+                    )
+
+                if prefill_num_worker == -1:
+                    prefill_num_worker_list = list(range(1, prefill_max_num_worker + 1, 1))
+                else:
+                    prefill_num_worker_list = [prefill_num_worker]
+                if decode_num_worker == -1:
+                    decode_num_worker_list = list(range(1, decode_max_num_worker + 1, 1))
+                else:
+                    decode_num_worker_list = [decode_num_worker]
+
+                num_gpu_list_parsed = [int(x) for x in num_gpu_list.split(",")] if len(num_gpu_list) > 0 else None
+
+                # Define TTFT and TPOT values to sweep
+                ttft_values = [300, 600, 1000]  # ms
+                tpot_values = [10, 20, 30, 50, 100]  # ms
+
+                # Run Pareto analysis for each TTFT
+                results_dict = {}
+                all_results_list = []
+                for ttft in ttft_values:
+                    runtime_config = config.RuntimeConfig(
+                        isl=isl, osl=osl, ttft=ttft, tpot=list(range(1, 20, 1)) + list(range(20, 300, 5))
+                    )
+
+                    results_df = pareto_analysis.disagg_pareto(
+                        model_name=model_name,
+                        runtime_config=runtime_config,
+                        prefill_database=prefill_database,
+                        prefill_backend_name=backend_name,
+                        prefill_model_config=prefill_model_config,
+                        prefill_parallel_config_list=prefill_parallel_config_list,
+                        prefill_num_worker_list=prefill_num_worker_list,
+                        prefill_latency_correction_scale=prefill_latency_correction_scale,
+                        decode_database=decode_database,
+                        decode_backend_name=backend_name,
+                        decode_model_config=decode_model_config,
+                        decode_parallel_config_list=decode_parallel_config_list,
+                        decode_num_worker_list=decode_num_worker_list,
+                        decode_latency_correction_scale=decode_latency_correction_scale,
+                        num_gpu_list=num_gpu_list_parsed,
+                        max_num_gpu=max_num_gpu if max_num_gpu > 0 else None,
+                        prefill_max_num_tokens=prefill_max_batch_size * isl,
+                        decode_max_num_tokens=decode_max_batch_size,
+                    )
+
+                    results_df = pareto_analysis.get_pareto_front(results_df, "tokens/s/user", "tokens/s/gpu")
+                    results_df = results_df.reset_index(drop=True).reset_index()
+                    if results_df.size == 0:
+                        logger.warning(f"No result for TTFT={ttft}ms. Try a larger TTFT limit or more GPUs.")
+                    else:
+                        # Add TTFT column for identification
+                        results_df["ttft_constraint"] = ttft
+                        results_dict[ttft] = results_df
+                        all_results_list.append(results_df)
+
+                # Combine all results
+                if all_results_list:
+                    combined_results_df = pd.concat(all_results_list, ignore_index=True)
+                    combined_results_df = combined_results_df.reset_index(drop=True).reset_index()
+                else:
+                    combined_results_df = pd.DataFrame(columns=common.ColumnsDisagg + ["ttft_constraint"])
+                    logger.error("No results found for any TTFT values. Try larger TTFT limits or more GPUs.")
+
+                # Now calculate P/D ratios for each TTFT/TPOT combination
+                results = []
+
+                for ttft_limit in ttft_values:
+                    for tpot_limit in tpot_values:
+                        # Filter configurations that SIMULTANEOUSLY meet both TTFT and TPOT constraints
+                        valid_configs = combined_results_df[
+                            (combined_results_df["ttft"] <= ttft_limit) & (combined_results_df["tpot"] <= tpot_limit)
+                        ]
+                        logger.debug(f"ttft={ttft_limit}ms, tpot={tpot_limit}ms, Valid configs: {valid_configs}")
+                        if valid_configs.empty:
+                            logger.warning(
+                                f"No configuration meets both TTFT={ttft_limit}ms and TPOT={tpot_limit}ms constraints, "
+                                "skipping this combination."
+                            )
+                            continue
+                        else:
+                            logger.info(f"TTFT={ttft_limit}ms and TPOT={tpot_limit}ms constraints: "
+                            f" Found {len(valid_configs)} configurations.")
+                            print(valid_configs)
+
+                        # Select the configuration with maximum throughput that meets both constraints
+                        # TODO(XUE) check if the index is correct
+                        best_config = valid_configs.loc[valid_configs["seq/s/gpu"].idxmax()]
+                        logger.info(f"ttft={ttft_limit}ms, tpot={tpot_limit}ms, Best config: {best_config}")
+                        print(best_config)
+
+                        # Extract prefill and decode worker information from the selected configuration
+                        prefill_workers = best_config["(p)workers"]
+                        decode_workers = best_config["(d)workers"]
+
+                        # Calculate P/D worker ratio (P_workers / D_workers)
+                        pd_ratio = f"{prefill_workers} : {decode_workers}"
+
+                        results.append(
+                            {
+                                "model": model_name,
+                                "isl": isl,
+                                "osl": osl,
+                                "ttft(ms)": ttft_limit,
+                                "tpot(ms)": tpot_limit,
+                                "(p)workers": prefill_workers,
+                                "(d)workers": decode_workers,
+                                "pd_ratio": pd_ratio,
+                            }
+                        )
+
+                results_df = pd.DataFrame(results, columns=common.ColumnsDisaggPD)
+                logger.info(f"Generated {len(results)} P/D ratio configurations")
+
+                # Create pivot table for pd_ratio: rows=TTFT, columns=TPOT, values=pd_ratio
+                pivot_df = results_df.pivot(index="ttft(ms)", columns="tpot(ms)", values="pd_ratio")
+                pivot_df = pivot_df.round(4)  # Round to 4 decimal places
+                pivot_df = pivot_df.reset_index()  # Convert index to column so TTFT values show as first column
+
+                # Apply styling to make the first column bold
+                def bold_first_column(val):
+                    return "font-weight: bold"
+
+                pivot_df = pivot_df.style.map(bold_first_column, subset=[pivot_df.columns[0]])
+
+            except Exception:
+                pivot_df = pd.DataFrame()
+                traceback_log = traceback.format_exc()
+                is_error = True
+
+        stdout_text = stdout_buffer.getvalue() + log_buffer.getvalue()
+        stderr_text = stderr_buffer.getvalue()
+
+        if is_error:
+            return (
+                gr.update(value=pivot_df),
+                gr.update(value=stdout_text + stderr_text + traceback_log),
+            )
+        return (
+            gr.update(value=pivot_df),
+            gr.update(value=stdout_text + stderr_text + traceback_log),
+        )
+
+    @staticmethod
     def save_result_for_comparison(result_name, result_df, pareto_results_state):
         stdout_buffer = StringIO()
         stderr_buffer = StringIO()
@@ -1079,11 +1381,7 @@ class EventFn:
 
         return (
             gr.update(choices=gemm_quant_mode_choices, value=gemm_quant_mode_choices[0], interactive=True),
-            gr.update(
-                choices=kvcache_quant_mode_choices,
-                value=kvcache_quant_mode_choices[0],
-                interactive=True,
-            ),
+            gr.update(choices=kvcache_quant_mode_choices, value=kvcache_quant_mode_choices[0], interactive=True),
             gr.update(choices=fmha_quant_mode_choices, value=fmha_quant_mode_choices[0], interactive=True),
             gr.update(choices=moe_quant_mode_choices, value=moe_quant_mode_choices[0], interactive=True),
         )

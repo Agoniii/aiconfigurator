@@ -278,7 +278,16 @@ ColumnsDisagg = [
     "(d)version",
     "(d)system",
 ]
-
+ColumnsDisaggPD = [
+    "model",
+    "isl",
+    "osl",
+    "ttft(ms)",
+    "tpot(ms)",
+    "(p)workers",
+    "(d)workers",
+    "pd_ratio",
+]
 
 class SOLMode(Enum):
     """
