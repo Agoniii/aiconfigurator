@@ -251,19 +251,23 @@ class EventHandler:
         )
 
     @staticmethod
-    def setup_disagg_pd_ratio_china_events(components):
+    def setup_disagg_pd_ratio_h20_6kd_events(components):
         components["estimate_btn"].click(
-            fn=EventFn.run_estimation_disagg_pd_ratio_china,
+            fn=EventFn.run_estimation_disagg_pd_ratio_h20_6kd,
             inputs=[
                 components["model_name_components"]["model_name"],
                 components["runtime_config_components"]["isl"],
                 components["runtime_config_components"]["osl"],
+                components["runtime_config_components"]["ttft"],
+                components["runtime_config_components"]["tpot"],
                 components["model_system_components"]["pd_system"],
             ],
+            #outputs=[components["results_df"], components["pivot_df"], components["debugging_box"]],
             outputs=[components["pivot_df"], components["debugging_box"]],
         )
         components["download_btn"].click(
             fn=EventFn.generate_csv,
+            #inputs=components["results_df"],
             inputs=components["pivot_df"],
             outputs=components["output_file"],
         )

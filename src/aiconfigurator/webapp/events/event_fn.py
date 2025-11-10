@@ -930,43 +930,44 @@ class EventFn:
         )
 
     @staticmethod
-    def run_estimation_disagg_pd_ratio_china(model_name, isl, osl, pd_system):
+    def run_estimation_disagg_pd_ratio_h20_6kd(model_name, isl, osl, ttft_str, tpot_str, pd_system):
         """
-        Simplified P/D ratio analysis for China configurations.
+        Simplified P/D ratio analysis for h20 and 6kd configurations.
 
         Args:
             model_name: Model name (e.g., 'DEEPSEEK_V3')
             isl: Input sequence length
             osl: Output sequence length
+            ttft_str: Comma-separated TTFT values in ms (e.g., '300,600,1000')
+            tpot_str: Comma-separated TPOT values (e.g., '10,20,30,50,100')
             pd_system: System configuration string (e.g., 'h20:h20', '6kd:h20', '6kd:6kd')
 
         Returns:
-            DataFrame with P/D worker ratios for different TTFT/TPOT combinations
+            DataFrame with P/D worker ratios for different TTFT/tokens_per_s_user combinations
         """
 
         # System name mapping
-        # TODO(XUE) Use the actual system name from the database
         system_mapping = {
-            "h20": "h200_sxm",
-            "6kd": "h100_sxm",
+            "h20": "h20e_sxm",
+            "6kd": "6000d",
         }
 
-        # TODO(XUE) check if the default values are correct
+        # TODO(XUE) refactor to use TaskConfig
         # prefill config
         prefill_num_worker = -1
-        prefill_num_gpus = [8]
+        prefill_num_gpus = [4, 8]
         prefill_tp_size = [1, 2, 4, 8]
-        prefill_pp_size = [1, 2, 4, 8]
-        prefill_moe_tp_size = [1, 2, 4, 8]
+        prefill_pp_size = [1]
+        prefill_moe_tp_size = [1]
         prefill_moe_ep_size = [1, 2, 4, 8]
         prefill_dp_size = [1, 2, 4, 8]
 
         # decode config
         decode_num_worker = -1
-        decode_num_gpus = [8]
+        decode_num_gpus = [4, 8]
         decode_tp_size = [1, 2, 4, 8]
-        decode_pp_size = [1, 2, 4, 8]
-        decode_moe_tp_size = [1, 2, 4, 8]
+        decode_pp_size = [1]
+        decode_moe_tp_size = [1]
         decode_moe_ep_size = [1, 2, 4, 8]
         decode_dp_size = [1, 2, 4, 8]
 
@@ -976,7 +977,7 @@ class EventFn:
 
         # nextn and nextn_accept_rates
         nextn_accept_rates = [0.85, 0.2, 0.0, 0.0, 0.0]
-        nextn = 0  # No speculative decoding
+        nextn = 0 if model_name == "DEEPSEEK_V3" else 0
 
         # advanced config
         num_gpu_list = []
@@ -1007,7 +1008,7 @@ class EventFn:
                 prefill_system_name = system_mapping[prefill_system_short]
                 decode_system_name = system_mapping[decode_system_short]
 
-                logger.info(f"Parsed system configuration: Prefill={prefill_system_name}, Decode={decode_system_name}")
+                logger.debug(f"Parsed system configuration: Prefill={prefill_system_name}, Decode={decode_system_name}")
 
                 # Use trtllm backend
                 backend_name = "trtllm"
@@ -1038,7 +1039,7 @@ class EventFn:
                     gemm_quant_mode=common.GEMMQuantMode.fp8,
                     kvcache_quant_mode=common.KVCacheQuantMode.fp8,
                     fmha_quant_mode=common.FMHAQuantMode.float16,
-                    moe_quant_mode=common.MoEQuantMode.fp8_block,
+                    moe_quant_mode=common.MoEQuantMode.fp8,
                     comm_quant_mode=common.CommQuantMode.fp8,
                     nextn=nextn,
                     nextn_accept_rates=nextn_accept_rates,
@@ -1053,7 +1054,7 @@ class EventFn:
                     gemm_quant_mode=common.GEMMQuantMode.fp8,
                     kvcache_quant_mode=common.KVCacheQuantMode.fp8,
                     fmha_quant_mode=common.FMHAQuantMode.float16,
-                    moe_quant_mode=common.MoEQuantMode.fp8_block,
+                    moe_quant_mode=common.MoEQuantMode.fp8,
                     comm_quant_mode=common.CommQuantMode.fp8,
                     nextn=nextn,
                     nextn_accept_rates=nextn_accept_rates,
@@ -1101,9 +1102,22 @@ class EventFn:
 
                 num_gpu_list_parsed = [int(x) for x in num_gpu_list.split(",")] if len(num_gpu_list) > 0 else None
 
-                # Define TTFT and TPOT values to sweep
-                ttft_values = [300, 600, 1000]  # ms
-                tpot_values = [10, 20, 30, 50, 100]  # ms
+                # Parse TTFT and TPOT values from input strings
+                try:
+                    ttft_values = [int(x.strip()) for x in ttft_str.split(",") if x.strip()]
+                    if not ttft_values:
+                        raise ValueError("TTFT values cannot be empty")
+                except (ValueError, AttributeError) as e:
+                    logger.error(f"Failed to parse TTFT values from '{ttft_str}': {e}")
+                    raise ValueError(f"Invalid TTFT format. Please provide comma-separated numbers (e.g., '300,600,1000')")
+
+                try:
+                    tpot_values = [int(x.strip()) for x in tpot_str.split(",") if x.strip()]
+                    if not tpot_values:
+                        raise ValueError("TPOT values cannot be empty")
+                except (ValueError, AttributeError) as e:
+                    logger.error(f"Failed to parse TPOT values from '{tpot_str}': {e}")
+                    raise ValueError(f"Invalid TPOT format. Please provide comma-separated numbers (e.g., '10,20,30,50,100')")
 
                 # Run Pareto analysis for each TTFT
                 results_dict = {}
@@ -1159,53 +1173,74 @@ class EventFn:
                     for tpot_limit in tpot_values:
                         # Filter configurations that SIMULTANEOUSLY meet both TTFT and TPOT constraints
                         valid_configs = combined_results_df[
-                            (combined_results_df["ttft"] <= ttft_limit) & (combined_results_df["tpot"] <= tpot_limit)
+                            (combined_results_df["ttft"] <= ttft_limit) &
+                            (combined_results_df["tokens/s/user"] >= tpot_limit * 0.9) &
+                            (combined_results_df["tokens/s/user"] <= tpot_limit * 1.2)
                         ]
-                        logger.debug(f"ttft={ttft_limit}ms, tpot={tpot_limit}ms, Valid configs: {valid_configs}")
+
                         if valid_configs.empty:
                             logger.warning(
-                                f"No configuration meets both TTFT={ttft_limit}ms and TPOT={tpot_limit}ms constraints, "
-                                "skipping this combination."
+                                f"No configuration meets both TTFT={ttft_limit}ms and TPOT={tpot_limit} constraints, "
+                                "adding placeholder."
                             )
-                            continue
+                            # Add placeholder entry to ensure all ttft/tpot combinations are shown in pivot table
+                            results.append(
+                                {
+                                    "model": model_name,
+                                    "isl": isl,
+                                    "osl": osl,
+                                    "ttft(ms)": ttft_limit,
+                                    "tokens/s/user": tpot_limit,
+                                    "tokens/s/gpu": None,
+                                    "(p)workers": None,
+                                    "(d)workers": None,
+                                    "pd_ratio": "/",
+                                }
+                            )
                         else:
-                            logger.info(f"TTFT={ttft_limit}ms and TPOT={tpot_limit}ms constraints: "
+                            logger.debug(f"TTFT={ttft_limit}ms and TPOT={tpot_limit} constraints: "
                             f" Found {len(valid_configs)} configurations.")
-                            print(valid_configs)
+                            logger.debug(valid_configs)
 
-                        # Select the configuration with maximum throughput that meets both constraints
-                        # TODO(XUE) check if the index is correct
-                        best_config = valid_configs.loc[valid_configs["seq/s/gpu"].idxmax()]
-                        logger.info(f"ttft={ttft_limit}ms, tpot={tpot_limit}ms, Best config: {best_config}")
-                        print(best_config)
+                            # Select the configuration with maximum throughput that meets both constraints
+                            best_config = valid_configs.loc[valid_configs["tokens/s/gpu"].idxmax()]
+                            logger.debug(f"ttft={ttft_limit}ms, tpot={tpot_limit}, Best config: {best_config}")
+                            logger.debug(best_config)
 
-                        # Extract prefill and decode worker information from the selected configuration
-                        prefill_workers = best_config["(p)workers"]
-                        decode_workers = best_config["(d)workers"]
+                            # Extract prefill and decode worker information from the selected configuration
+                            prefill_workers = best_config["(p)workers"]
+                            decode_workers = best_config["(d)workers"]
 
-                        # Calculate P/D worker ratio (P_workers / D_workers)
-                        pd_ratio = f"{prefill_workers} : {decode_workers}"
+                            # Calculate P/D worker ratio (P_workers / D_workers)
+                            pd_ratio = f"{prefill_workers} : {decode_workers}"
 
-                        results.append(
-                            {
-                                "model": model_name,
-                                "isl": isl,
-                                "osl": osl,
-                                "ttft(ms)": ttft_limit,
-                                "tpot(ms)": tpot_limit,
-                                "(p)workers": prefill_workers,
-                                "(d)workers": decode_workers,
-                                "pd_ratio": pd_ratio,
-                            }
-                        )
+                            results.append(
+                                {
+                                    "model": model_name,
+                                    "isl": isl,
+                                    "osl": osl,
+                                    "ttft(ms)": ttft_limit,
+                                    "tokens/s/user": tpot_limit,
+                                    "tokens/s/gpu": best_config["tokens/s/gpu"],
+                                    "(p)workers": prefill_workers,
+                                    "(d)workers": decode_workers,
+                                    "pd_ratio": pd_ratio,
+                                }
+                            )
 
                 results_df = pd.DataFrame(results, columns=common.ColumnsDisaggPD)
-                logger.info(f"Generated {len(results)} P/D ratio configurations")
+                logger.debug(f"Generated {len(results)} P/D ratio configurations")
 
-                # Create pivot table for pd_ratio: rows=TTFT, columns=TPOT, values=pd_ratio
-                pivot_df = results_df.pivot(index="ttft(ms)", columns="tpot(ms)", values="pd_ratio")
-                pivot_df = pivot_df.round(4)  # Round to 4 decimal places
+                # Create pivot table for pd_ratio: rows=TTFT, columns=tokens/s/user, values=pd_ratio
+                pivot_df = results_df.pivot(index="ttft(ms)", columns="tokens/s/user", values="pd_ratio")
                 pivot_df = pivot_df.reset_index()  # Convert index to column so TTFT values show as first column
+
+                # Fill NaN values with "/" to indicate no configuration available
+                pivot_df = pivot_df.fillna("/")
+
+                # Rename the first column header (must be done before styling)
+                new_columns = ["ttft(ms) \ tokens/s/user"] + [str(col) for col in pivot_df.columns[1:]]
+                pivot_df.columns = pd.Index(new_columns)
 
                 # Apply styling to make the first column bold
                 def bold_first_column(val):
@@ -1223,10 +1258,12 @@ class EventFn:
 
         if is_error:
             return (
+                #gr.update(value=combined_results_df),
                 gr.update(value=pivot_df),
                 gr.update(value=stdout_text + stderr_text + traceback_log),
             )
         return (
+            #gr.update(value=combined_results_df),
             gr.update(value=pivot_df),
             gr.update(value=stdout_text + stderr_text + traceback_log),
         )

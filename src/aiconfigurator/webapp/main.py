@@ -11,7 +11,7 @@ import aiconfigurator
 from aiconfigurator.webapp.components.agg_pareto_tab import create_agg_pareto_tab
 from aiconfigurator.webapp.components.agg_tab import create_agg_tab
 from aiconfigurator.webapp.components.disagg_pareto_tab import create_disagg_pareto_tab
-from aiconfigurator.webapp.components.disagg_pd_ratio_china_tab import create_disagg_pd_ratio_china_tab
+from aiconfigurator.webapp.components.disagg_pd_ratio_h20_6kd_tab import create_disagg_pd_ratio_h20_6kd_tab
 from aiconfigurator.webapp.components.disagg_pd_ratio_tab import create_disagg_pd_ratio_tab
 from aiconfigurator.webapp.components.pareto_comparison_tab import create_pareto_comparison_tab
 from aiconfigurator.webapp.components.readme_tab import create_readme_tab
@@ -64,6 +64,14 @@ def main(args):
         .config-column:last-child {
             border-right: none;
         }
+        .equal-width-columns table {
+            table-layout: fixed !important;
+            width: 100% !important;
+        }
+        .equal-width-columns th,
+        .equal-width-columns td {
+            width: auto !important;
+        }
     """
     ) as demo:
         pareto_results_state = gr.State(defaultdict())
@@ -89,7 +97,7 @@ def main(args):
                 agg_components = create_agg_tab(app_config)
             agg_pareto_components = create_agg_pareto_tab(app_config)
             disagg_pareto_components = create_disagg_pareto_tab(app_config)
-            disagg_pd_ratio_china_components = create_disagg_pd_ratio_china_tab(app_config)
+            disagg_pd_ratio_h20_6kd_components = create_disagg_pd_ratio_h20_6kd_tab(app_config)
             if app_config["enable_disagg_pd_ratio"]:
                 disagg_pd_ratio_components = create_disagg_pd_ratio_tab(app_config)
             pareto_comparison_components = create_pareto_comparison_tab(app_config)
@@ -100,7 +108,7 @@ def main(args):
             EventHandler.setup_agg_events(agg_components)
         EventHandler.setup_agg_pareto_events(agg_pareto_components)
         EventHandler.setup_disagg_pareto_events(disagg_pareto_components)
-        EventHandler.setup_disagg_pd_ratio_china_events(disagg_pd_ratio_china_components)
+        EventHandler.setup_disagg_pd_ratio_h20_6kd_events(disagg_pd_ratio_h20_6kd_components)
         EventHandler.setup_save_events(
             agg_pareto_components["result_name"],
             agg_pareto_components["save_btn"],
@@ -119,7 +127,7 @@ def main(args):
             EventHandler.setup_disagg_pd_ratio_events(disagg_pd_ratio_components)
         EventHandler.setup_pareto_comparison_events(pareto_comparison_components, pareto_results_state)
 
-        demo.launch(server_name=args.server_name, server_port=args.server_port)
+        demo.launch(server_name=args.server_name, server_port=args.server_port, share=True)
 
 
 if __name__ == "__main__":
